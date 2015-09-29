@@ -7,22 +7,7 @@
 char buffer_send[1000];
 char buffer_recv[2000];
 
-// Connect to TRS on port.  Wait for ACK and return success or failure
-int cmd_connect();
 
-// Request to move from Q to Channel.  Wait for IN_SESSION
-int cmd_chat(char* id_channel);
-
-// Flag chatting partner.  Parameter may not be necessary.
-int cmd_flag(char* id_channel);
-
-// Ask for command listing and print them when received.
-int cmd_help();
-int cmd_quit();
-int cmd_transfer();
-
-// Send a message through the server to the other participant in the channel.
-int cmd_send();
  
 int main(int argc, char *argv[])
 {
