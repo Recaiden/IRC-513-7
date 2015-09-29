@@ -1,6 +1,7 @@
 #ifndef H_GLOBAL
 #define H_GLOBAL
 
-PORT = 6660  // Unofficial IRC reserved port
+#define PORT 6660  // Unofficial IRC reserved port
+#define SPORT "6660"
 
 #endif

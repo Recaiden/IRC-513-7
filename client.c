@@ -18,9 +18,9 @@ int main(int argc, char *argv[])
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1)
     {
-        printf("Could not create socket");
+      fprintf(stderr, "Could not create socket\n");
     }
-    puts("Socket created");
+    printf("Socket created\n");
 
     // TODO use hostname command to resolve names to IP rather than hardcoding
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
@@ -53,13 +53,13 @@ int main(int argc, char *argv[])
 	// TODO fo rthe majority of normal chat the server won't respond per message.
         if( recv(sock, buffer_recv, 2000, 0) < 0)
         {
-            puts("Recv failed");
+	  fprintf(stderr, "Recv failed\n");
             break;
         }
 	else
 	{
-	  puts("SERVER :");
-	  puts(buffer_recv);
+	  printf("SERVER :");
+	  printf(buffer_recv);
 	}
     }   
     close(sock);
@@ -71,12 +71,12 @@ int cmd_connect(int sock, struct sockaddr_in server)
   // Connect to TextRouletteServer
   if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
   {
-    perror("Error. connect failed.");
+    fprintf(stderr, "Error. connect failed.\n");
     return 1;
   }
 
   //TODO add recv for ACK
-  puts("Connected\n");
+  printf("Connected\n");
   return 0;
 }
 
@@ -105,7 +105,7 @@ int cmd_send(int sock)
   //Send some data
   if(send(sock, buffer_send, strlen(buffer_send), 0) < 0)
   {
-    puts("Send failed");
+    printf("Send failed");
     return 1;
   }
 }
