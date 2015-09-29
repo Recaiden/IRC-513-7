@@ -4,6 +4,8 @@
 #include<arpa/inet.h>
 #include<unistd.h>
 #nclude "global.h"
+
+//TODO Whichmethod are we using to handle multiple clients?  Select?  Threads?  Other?
  
 int main(int argc, char *argv[])
 {

@@ -49,7 +49,8 @@ int main(int argc, char *argv[])
 	else
 	  cmd_send(sock);
          
-        //Receive a reply from the server
+        // Receive a reply from the server
+	// TODO fo rthe majority of normal chat the server won't respond per message.
         if( recv(sock, buffer_recv, 2000, 0) < 0)
         {
             puts("Recv failed");
@@ -57,14 +58,13 @@ int main(int argc, char *argv[])
         }
 	else
 	{
-	  puts("Server reply :");
+	  puts("SERVER :");
 	  puts(buffer_recv);
 	}
     }   
     close(sock);
     return 0;
 }
-
 
 int cmd_connect(int sock, struct sockaddr_in server)
 {
