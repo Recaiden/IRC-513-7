@@ -1,111 +1,100 @@
 #include <stdio.h>
-#include <ctype.h>
+#include <stdlib.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include "global.h"
+#include <pthread.h>
 
-char buffer_send[1000];
-char buffer_recv[2000];
+int friend_fd = 0;
 
- 
-int main(int argc, char *argv[])
+void *read_chat(void *socket)
 {
-    int sock;
-    struct sockaddr_in server;
-     
-    //Create socket
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == -1)
-    {
-      fprintf(stderr, "Could not create socket\n");
+  int n;
+  char chat_buffer[256];
+  int * socket_fd = (int *)socket;
+  while(1){
+    //read server response
+    bzero(chat_buffer, 256);
+    n = read((* socket_fd), chat_buffer, 255);
+    if(n < 0){
+      sleep(1); //sleep some time while waiting for a message
+    } else {
+      //display message
+      if(strlen(chat_buffer) < 2){
+	friend_fd = atoi(chat_buffer);
+      } else {
+	printf("%s", chat_buffer);
+      }
     }
-    printf("Socket created\n");
-
-    // TODO use hostname command to resolve names to IP rather than hardcoding
-    server.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server.sin_family = AF_INET;
-    server.sin_port = htons(PORT);
-
-    if (cmd_connect(sock, server) > 0)
-      return 1;
-     
-    // Read in line, compare to commands, default to sending as message.
-    while(1)
-    {
-        printf("Send : ");
-        scanf("%s", buffer_send);
-
-	if(strncmp(buffer_send, "/HELP", 5) == 0)
-	  cmd_help();
-	else if(strncmp(buffer_send, "/FLAG", 5) == 0)
-	  cmd_flag();
-	else if(strncmp(buffer_send, "/QUIT", 5) == 0)
-	  cmd_quit();
-	else if(strncmp(buffer_send, "/FILE", 5) == 0)
-	  cmd_transfer();
-	else if(strncmp(buffer_send, "/JOIN", 5) == 0)
-	  cmd_chat();
-	else
-	  cmd_send(sock);
-         
-        // Receive a reply from the server
-	// TODO fo rthe majority of normal chat the server won't respond per message.
-        if( recv(sock, buffer_recv, 2000, 0) < 0)
-        {
-	  fprintf(stderr, "Recv failed\n");
-            break;
-        }
-	else
-	{
-	  printf("SERVER :");
-	  printf(buffer_recv);
-	}
-    }   
-    close(sock);
-    return 0;
+  }		
 }
 
-int cmd_connect(int sock, struct sockaddr_in server)
-{
-  // Connect to TextRouletteServer
-  if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
-  {
-    fprintf(stderr, "Error. connect failed.\n");
-    return 1;
+
+int main(int argc, char *argv[]){
+  
+  int socket_fd, port_num, n;
+  struct sockaddr_in server_addr;
+  struct hostent * server;
+  char packaged[256];
+  char buffer[251];
+  
+  //not given hostname and port
+  if(argc <3){
+    fprintf(stderr, "usage %s hostname port\n", argv[0]);
+    exit(0);
   }
-
-  //TODO add recv for ACK
-  printf("Connected\n");
-  return 0;
-}
-
-int cmd_chat(char* id_channel)
-{
-}
-
-int cmd_flag(char* id_channel)
-{
-}
-
-int cmd_help()
-{
-}
-
-int cmd_quit()
-{
-}
-
-int cmd_transfer()
-{
-}
-
-int cmd_send(int sock)
-{
-  //Send some data
-  if(send(sock, buffer_send, strlen(buffer_send), 0) < 0)
-  {
-    printf("Send failed");
-    return 1;
+  
+  port_num = atoi(argv[2]); //convert arg to int
+  
+  //init socket
+  socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+  
+  if(socket_fd < 0){
+    perror("Error opening socket");
+    exit(1);
   }
+  
+  server = gethostbyname(argv[1]);
+  
+  if(server == NULL){
+    fprintf(stderr, "Error, no such host\n");
+    exit(0);
+  }
+  
+  bzero((char *) &server_addr, sizeof(server_addr)); //zero out addr
+  server_addr.sin_family = AF_INET;
+  bcopy((char *)server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length); //copy over s_addr
+  server_addr.sin_port = htons(port_num); //htons converts to network byte order
+  
+  //connect to server
+  if(connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
+    perror("Error connecting to server");
+    exit(1);
+  }
+  
+  pthread_t reader_thread;
+  
+  if(pthread_create(&reader_thread, NULL, read_chat, &socket_fd)){
+    fprintf(stderr, "Error creating reader thread\n");
+    exit(1);
+  }
+  
+  printf("Please enter a messages: ");
+  while(1){
+    //create message for server
+    bzero(packaged, 255);
+    bzero(buffer, 251);
+    fgets(buffer, 250, stdin);
+    sprintf(packaged, "%04d", friend_fd);
+    strcat(packaged, buffer);
+    //send message to server
+    n = write(socket_fd, packaged, strlen(packaged));
+    if(n < 0){
+      perror("Error writing to server");
+      exit(1);
+    }
+  }	
+  close(socket_fd);
+  
 }
+
