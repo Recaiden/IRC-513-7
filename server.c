@@ -3,10 +3,13 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <unistd.h>
 
 #define PORT 6660
 
 #define MAX_SOCKETS  10
+
+int flags [MAX_SOCKETS];
 
 
 /*
@@ -40,43 +43,102 @@ int sendToClient(char *message)
 // 2 is waiting to find partner
 // 3 is connected
 
-// fd is sending Client's number
-int processCommand(char *message, int fd, int* used_fds){
-  printf("Processing...%d\n", fd);
-  if(strstr(message, "/Connect") != NULL)
+int processConnect(char *message, int fd, int* used_fds)
+{
+  int x;
+  int matched = 0;
+  for(x = 0; x < MAX_SOCKETS+5; x++)
   {
-    int x;
-    int matched = 0;
-    for(x = 0; x < MAX_SOCKETS+5; x++)
+    if(x != fd && used_fds[x] == 2)
     {
-      if(x != fd && used_fds[x] == 2)
-      {
-	matched = 1;
-	int n;
-	char str[5];
-	char str2[5];
+      matched = 1;
+      int n;
+      char str[5];
+      char str2[5];
+      
+      sprintf(str, "%d", x);
+      n = write(fd, str, strlen(str));
+      if(n < 0)
+      { perror("Error writing to client");  exit(1); }
+      
+      sprintf(str2, "%d", fd);
+      n = write(x, str2, strlen(str2));
+      if(n < 0)
+      { perror("Error writing to client");  exit(1); }
 	
-	sprintf(str, "%d", x);
-	n = write(fd, str, strlen(str));
-	if(n < 0)
-	{ perror("Error writing to client");  exit(1); }
-	
-	sprintf(str2, "%d", fd);
-	n = write(x, str2, strlen(str2));
-	if(n < 0)
-	{ perror("Error writing to client");  exit(1); }
-	
-	used_fds[x] = 3;
-	used_fds[fd] = 3;
-	printf("Matched! Connecting %d and %d\n", x, fd);
-	break;
-      } 
-    }
-    if(matched == 0)
-    {
-      printf("no match\n");
-      used_fds[fd] = 2; // 2 is fds waiting to find partners
-    }
+      used_fds[x] = 3;
+      used_fds[fd] = 3;
+      printf("Matched! Connecting %d and %d\n", x, fd);
+      break;
+    } 
+  }
+  if(matched == 0)
+  {
+    printf("no match\n");
+    used_fds[fd] = 2; // 2 is fds waiting to find partners
+  }
+  return 0;
+}
+
+
+
+// fd is sending Client's number
+int processCommand(char *message, int fd, int* used_fds)
+{
+  printf("Processing...%d\n", fd);
+  if(strstr(message, "/CHAT") != NULL)
+  { processConnect(message, fd, used_fds); }
+  else if(strstr(message, "/FLAG") != NULL)
+  {
+    // Flag fd's partner
+    char fd_id [5];
+    char stripped_message [251];
+    memcpy(fd_id, &message[0], 4);
+    memcpy(stripped_message, &message[4], 251);
+    fd_id[4] = '\0';
+    int id = strtoul(fd_id, NULL, 10);
+    
+    flags[id] = 1; // Currently has no effect
+    //TODO error-handling - FLAG before CHAT should do nothing
+  }
+  else if(strstr(message, "/HELP") != NULL)
+  {
+    char response[256];
+    bzero(response, 256);
+    sprintf(response, "The server accepts the following commands:\n/CHAT to enter a chatroom\n/FLAG to report misbehavior by your partner\n/FILE to begin transferring a file to your partner\n/QUIT to leave your chat.");
+    int n = write(fd, response, strlen(response));
+    if(n < 0)
+    { perror("Error writing to client");  exit(1); }
+  }
+  else if(strstr(message, "/QUIT") != NULL)
+  {
+    int n;
+    char fd_id [5];
+    memcpy(fd_id, &message[0], 4);
+    fd_id[4] = '\0';
+    int id = strtoul(fd_id, NULL, 10);
+
+    char str[256];
+    char str2[256];
+
+    // Disconnect requester
+    sprintf(str, "You have disconnected from the chatroom.  You will return to the queue.\n");
+    n = write(fd, str, strlen(str));
+    if(n < 0)
+    { perror("Error writing to client");  exit(1); }
+    used_fds[fd] = 1;
+
+    // Disconnect their partner
+    sprintf(str2, "Your partner has disconnected from the chatroom.  You will return to the queue.\n");
+    n = write(id, str2, strlen(str2));
+    if(n < 0)
+    { perror("Error writing to client");  exit(1); }
+    used_fds[id] = 1;
+  }
+  else if(strstr(message, "/FILE") != NULL)
+  {
+    //
+    perror("unfinished code.");
   }
   else
   {
@@ -84,12 +146,11 @@ int processCommand(char *message, int fd, int* used_fds){
     bzero(response, 256);
     sprintf(response, "Command not Found");
     int n = write(fd, response, strlen(response));
-    if(n < 0){
-      perror("Error writing to client");
-      exit(1);
-    }
+    if(n < 0)
+      { perror("Error writing to client");  exit(1); }
   }
   // compare to keywords for connecting chats blocking people etc.
+  return 0;
 }
 
 
