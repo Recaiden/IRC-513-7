@@ -11,6 +11,54 @@
 
 int friend_fd = 0;
 
+
+int transfer_file(int socket_fd, char* filename)
+{
+  char packaged[256];
+  char buffer[251];
+  
+  FILE *fp;
+  fp = fopen(filename, "rb"); 
+  if(fp == NULL)
+  { perror("Error opening file"); return 1; }
+
+  while(1)
+  {
+    bzero(packaged, 256);
+    bzero(buffer, 251);
+    
+    int nread = fread(buffer, 1, 251, fp);
+    sprintf(packaged, "%04d", friend_fd);
+    if(nread > 0)
+    {
+      strcat(packaged, buffer);
+      printf(".");
+      write(socket_fd, packaged, nread+5);
+    }    
+    if (nread < 256)
+    {
+      if (feof(fp))
+      {
+	printf("End of file\n");
+	return 0;
+      }
+      if (ferror(fp))
+      {
+	perror("Error reading\n");
+	// TODO better handling. Should send special message?
+	return 1;
+      }
+      else
+      {
+	perror("Unknown error.");
+	return 2;
+      }
+      break;
+
+    }  
+  }
+}
+
 void *read_chat(void *socket)
 {
   int n;
@@ -30,16 +78,18 @@ void *read_chat(void *socket)
 
 	char fd_id [5];
 	char stripped_message [251];
-	memcpy(fd_id, &chat_buffer[0], index);
-	memcpy(stripped_message, &chat_buffer[index], 256 - index -1);
+	memcpy(fd_id, &chat_buffer[0], n);
+	memcpy(stripped_message, &chat_buffer[index], n - index -1);
+	fd_id[index] = '\0';
 
 	friend_fd = atoi(fd_id);
 	
-	printf("You are chatting with %s\n", stripped_message);
+	printf("You are chatting with %s %d\n", stripped_message, friend_fd);
       }
       else if (0)
       {
 	//TODO if we're receiving a file
+	perror("How are you here?\n");
       }
       else
       {
@@ -118,8 +168,7 @@ int main(int argc, char *argv[]){
     bzero(buffer, 251);
     fgets(buffer, 250, stdin);
 
-    sprintf(packaged, "%04d", friend_fd);
-    
+    sprintf(packaged, "%04d", friend_fd);  
 
     // Check if file-transfer has started.
     if(strstr(buffer, "/FILE") == buffer)
@@ -141,19 +190,24 @@ int main(int argc, char *argv[]){
       //printf("File %s, Size is %d\n", filename, size);
       strcat(packaged, "/FILE");
       strcat(packaged, filename);
+      
+      //send message to server
+      n = write(socket_fd, packaged, strlen(packaged));
+      if(n < 0)
+      { perror("Error writing to server"); exit(1); }
+
+      transfer_file(socket_fd, filename);
     }
-    
+
+    // Majority case
     else
     {
       strcat(packaged, buffer);
+      //send message to server
+      n = write(socket_fd, packaged, strlen(packaged));
+      if(n < 0)
+      { perror("Error writing to server"); exit(1); }
     }
-    
-    //send message to server
-    n = write(socket_fd, packaged, strlen(packaged));
-    if(n < 0)
-    { perror("Error writing to server"); exit(1); }
   }	
   close(socket_fd);
-  
 }
-
