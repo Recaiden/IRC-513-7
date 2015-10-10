@@ -5,6 +5,9 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <sys/stat.h>
+
+#define SIZE_FILE_MAX 104857600
 
 int friend_fd = 0;
 
@@ -33,7 +36,13 @@ void *read_chat(void *socket)
 	friend_fd = atoi(fd_id);
 	
 	printf("You are chatting with %s\n", stripped_message);
-      } else {
+      }
+      else if (0)
+      {
+	//TODO if we're receiving a file
+      }
+      else
+      {
 	printf("%s\n", chat_buffer);
       }
     }
@@ -108,8 +117,36 @@ int main(int argc, char *argv[]){
     bzero(packaged, 255);
     bzero(buffer, 251);
     fgets(buffer, 250, stdin);
+
     sprintf(packaged, "%04d", friend_fd);
-    strcat(packaged, buffer);
+    
+
+    // Check if file-transfer has started.
+    if(strstr(buffer, "/FILE") == buffer)
+    {
+      buffer[strcspn(buffer, "\r\n")] = 0; // Trim newlines
+      char filename [244];
+      memcpy(filename, &buffer[6], 244);
+      int size;
+      struct stat st;
+      stat(filename, &st);
+      size = st.st_size;
+
+      if(size > SIZE_FILE_MAX)
+      {
+	printf("File size exceeded.");
+	continue;
+      }
+
+      //printf("File %s, Size is %d\n", filename, size);
+      strcat(packaged, "/FILE");
+      strcat(packaged, filename);
+    }
+    
+    else
+    {
+      strcat(packaged, buffer);
+    }
     
     //send message to server
     n = write(socket_fd, packaged, strlen(packaged));

@@ -129,7 +129,7 @@ int processCommand(char *message, int fd, int* used_fds)
   {
     char response[256];
     bzero(response, 256);
-    sprintf(response, "The server accepts the following commands:\n/CHAT to enter a chatroom\n/FLAG to report misbehavior by your partner\n/FILE to begin transferring a file to your partner\n/QUIT to leave your chat.");
+    sprintf(response, "The server accepts the following commands:\n/CHAT to enter a chatroom\n/FLAG to report misbehavior by your partner\n/FILE path/to/file to begin transferring a file to your partner\n/QUIT to leave your chat.");
     int n = write(fd, response, strlen(response));
     if(n < 0)
     { perror("Error writing Help message to client");  exit(1); }
@@ -260,7 +260,9 @@ int main (int argc, char *argv[] ){
 	  n = read(i, buffer, 255);
 	  if(n < 0){
 	    perror("Error reading from client");
-	    exit(1);
+	    //exit(1);
+	    // Do not exit, mark that client as disconnected, inform their partner, and continue
+	    //TODO
 	  }
 
 	  //debug, message coming in
