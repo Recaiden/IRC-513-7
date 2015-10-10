@@ -97,9 +97,21 @@ int processCommand(char *message, int fd, int* used_fds)
     memcpy(stripped_message, &message[4], 251);
     fd_id[4] = '\0';
     int id = strtoul(fd_id, NULL, 10);
-    
-    flags[id] = 1; // Currently has no effect
-    //TODO error-handling - FLAG before CHAT should do nothing
+
+    // check if the client being flagged is actually still conencted
+    if(used_fds[id] == 3)
+    {
+      flags[id] = 1; // Currently has no effect
+    }
+  }
+  else if(strstr(message, "/CONN") != NULL)
+  {
+    char response[256];
+    bzero(response, 256);
+    sprintf(response, "");
+    int n = write(fd, response, strlen(response));
+    if(n < 0)
+    { perror("Error writing to client");  exit(1); }
   }
   else if(strstr(message, "/HELP") != NULL)
   {
@@ -108,7 +120,7 @@ int processCommand(char *message, int fd, int* used_fds)
     sprintf(response, "The server accepts the following commands:\n/CHAT to enter a chatroom\n/FLAG to report misbehavior by your partner\n/FILE to begin transferring a file to your partner\n/QUIT to leave your chat.");
     int n = write(fd, response, strlen(response));
     if(n < 0)
-    { perror("Error writing to client");  exit(1); }
+    { perror("Error writing Help message to client");  exit(1); }
   }
   else if(strstr(message, "/QUIT") != NULL)
   {

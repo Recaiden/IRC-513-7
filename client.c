@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <pthread.h>
+#include <unistd.h>
 
 int friend_fd = 0;
 
@@ -28,7 +29,6 @@ void *read_chat(void *socket)
     }
   }		
 }
-
 
 int main(int argc, char *argv[]){
   
@@ -67,10 +67,22 @@ int main(int argc, char *argv[]){
   server_addr.sin_port = htons(port_num); //htons converts to network byte order
   
   //connect to server
-  if(connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
-    perror("Error connecting to server");
-    exit(1);
-  }
+  if(connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+  { perror("Error connecting to server"); exit(1); }
+
+  // Identifying Connect command
+  printf("Please enter your nickname: ");
+  //create message for server
+  bzero(packaged, 255);
+  bzero(buffer, 251);
+  fgets(buffer, 250, stdin);
+  sprintf(packaged, "%04d/CONN", friend_fd);
+  strcat(packaged, buffer);
+  
+  //send message to server
+  n = write(socket_fd, packaged, strlen(packaged));
+  if(n < 0)
+  { perror("Error identifying to server"); exit(1); }
   
   pthread_t reader_thread;
   
@@ -79,20 +91,20 @@ int main(int argc, char *argv[]){
     exit(1);
   }
   
-  printf("Please enter a messages: ");
   while(1){
+    printf("Please enter a message: ");
+    
     //create message for server
     bzero(packaged, 255);
     bzero(buffer, 251);
     fgets(buffer, 250, stdin);
     sprintf(packaged, "%04d", friend_fd);
     strcat(packaged, buffer);
+    
     //send message to server
     n = write(socket_fd, packaged, strlen(packaged));
-    if(n < 0){
-      perror("Error writing to server");
-      exit(1);
-    }
+    if(n < 0)
+    { perror("Error writing to server"); exit(1); }
   }	
   close(socket_fd);
   
