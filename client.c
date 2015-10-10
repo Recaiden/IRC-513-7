@@ -84,12 +84,18 @@ void *read_chat(void *socket)
 
 	friend_fd = atoi(fd_id);
 	
-	printf("You are chatting with %s %d\n", stripped_message, friend_fd);
+	printf("You are chatting with %s\n", stripped_message);
       }
       else if (0)
       {
 	//TODO if we're receiving a file
 	perror("How are you here?\n");
+      }
+      // Chatroom was closed
+      else if (strstr(chat_buffer, "/PART") != NULL)
+      {
+	friend_fd = 0;
+	printf("%s\n", &chat_buffer[5]);
       }
       else
       {

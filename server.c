@@ -14,7 +14,35 @@ int flags [MAX_SOCKETS];
 int blocks [MAX_SOCKETS];
 char nicknames [MAX_SOCKETS][256];
 int used_fds[MAX_SOCKETS+5];
+int partners[MAX_SOCKETS];
 
+
+int reset_partners(int id_quitting)
+{
+  partners[partners[id_quitting]] = 0;
+  partners[id_quitting] = 0;
+  return 0;
+}
+
+int handle_disconnect(int i)
+{
+  char str2[256];
+  int n;
+  
+  // Disconnect their partner
+  sprintf(str2, "/PARTYour partner has disconnected from the server.  You will return to the queue.\n");
+  n = write(partners[i], str2, strlen(str2));
+  if(n < 0)
+  { perror("Error writing to client");  return(1); }
+  used_fds[partners[i]] = 1;
+  
+  used_fds[i] = 0;
+  blocks[i] = 0;
+  flags[i] = 0;
+  reset_partners(i);
+  
+  return 0;
+}
 
 /*
 	sendToClient uses the fd appended to the beginning of 
@@ -72,6 +100,7 @@ int processConnect(char *message, int fd)//, int* used_fds)
       if(n < 0)
       { perror("Error writing to client");  exit(1); }
       used_fds[fd] = 3;
+      partners[fd] = x;
 
       // Write to waiting partner who was first to connect
       sprintf(str2, "%d|%s", fd, nicknames[fd]);
@@ -79,6 +108,7 @@ int processConnect(char *message, int fd)//, int* used_fds)
       if(n < 0)
       { perror("Error writing to client");  exit(1); }
       used_fds[x] = 3;
+      partners[x] = fd;
       
       printf("Matched! Connecting %d and %d\n", x, fd);
       break;
@@ -91,8 +121,6 @@ int processConnect(char *message, int fd)//, int* used_fds)
   }
   return 0;
 }
-
-
 
 // fd is sending Client's number
 int processCommand(char *message, int fd)//, int* used_fds)
@@ -135,7 +163,7 @@ int processCommand(char *message, int fd)//, int* used_fds)
     sprintf(response, "You are now connected as %s", nicknames[fd]);
     int n = write(fd, response, strlen(response));
     if(n < 0)
-    { perror("Error writing to client");  exit(1); }
+    { perror("Error ACKing nickname");  return 1; }
   }
   else if(strstr(message, "/HELP") != NULL)
   {
@@ -144,7 +172,7 @@ int processCommand(char *message, int fd)//, int* used_fds)
     sprintf(response, "The server accepts the following commands:\n/CHAT to enter a chatroom\n/FLAG to report misbehavior by your partner\n/FILE path/to/file to begin transferring a file to your partner\n/QUIT to leave your chat.");
     int n = write(fd, response, strlen(response));
     if(n < 0)
-    { perror("Error writing Help message to client");  exit(1); }
+    { perror("Error writing Help message to client");  return 1; }
   }
   else if(strstr(message, "/QUIT") != NULL)
   {
@@ -158,18 +186,20 @@ int processCommand(char *message, int fd)//, int* used_fds)
     char str2[256];
 
     // Disconnect requester
-    sprintf(str, "You have disconnected from the chatroom.  You will return to the queue.\n");
+    sprintf(str, "/PARTYou have left from the chatroom.  You will return to the queue.\n");
     n = write(fd, str, strlen(str));
     if(n < 0)
-    { perror("Error writing to client");  exit(1); }
+    { perror("Error writing quit to quitter");  return 1; }
     used_fds[fd] = 1;
 
     // Disconnect their partner
-    sprintf(str2, "Your partner has disconnected from the chatroom.  You will return to the queue.\n");
+    sprintf(str2, "/PARTYour partner has left from the chatroom.  You will return to the queue.\n");
     n = write(id, str2, strlen(str2));
     if(n < 0)
-    { perror("Error writing to client");  exit(1); }
+    { perror("Error writing quit to partner");  return 1; }
     used_fds[id] = 1;
+
+    reset_partners(fd);
   }
   else if(strstr(message, "/FILE") != NULL)
   {
@@ -308,7 +338,7 @@ int main (int argc, char *argv[] ){
   printf("Server listening for sockets on port:%d\n", port_num);
   
   //listen for clients
-  listen(socket_fd, 10);
+  listen(socket_fd, MAX_SOCKETS);
   client_len = sizeof(client_addr); // set client length
   
   FD_ZERO(&fd_master_set);
@@ -323,10 +353,9 @@ int main (int argc, char *argv[] ){
     
     read_set = fd_master_set;
     n = select(FD_SETSIZE, &read_set, NULL, NULL, NULL);
-    if(n < 0){
-      perror("Select Failed");
-      exit(1);
-    }
+    if(n < 0)
+    { perror("Select Failed"); exit(1); }
+    
     for(i = 0; i < FD_SETSIZE; i++)
     {
       if(FD_ISSET(i, &read_set))
@@ -344,8 +373,6 @@ int main (int argc, char *argv[] ){
 	    used_fds[client_fd[number_sockets]] = 1;
 	    FD_SET(client_fd[number_sockets], &fd_master_set);
 	    number_sockets++;
-
-	    // Create chatroom
 	  }
 	  else
 	  { printf("No more connection space"); }
@@ -355,9 +382,11 @@ int main (int argc, char *argv[] ){
 	  n = read(i, buffer, 255);
 	  if(n < 0){
 	    perror("Error reading from client");
-	    //continue;
-	    // Do not exit, mark that client as disconnected, inform their partner, and continue
-	    //TODO
+	    // Do not exit, mark that client as D/C, inform their partner, carry one
+	    FD_CLR(i, &fd_master_set);
+	    FD_CLR(i, &read_set);
+	    handle_disconnect(i);
+	    continue;
 	  }
 
 	  //debug, message coming in
