@@ -4,13 +4,16 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #define PORT 6660
 
 #define MAX_SOCKETS  10
 
 int flags [MAX_SOCKETS];
+int blocks [MAX_SOCKETS];
 char nicknames [MAX_SOCKETS][256];
+int used_fds[MAX_SOCKETS+5];
 
 
 /*
@@ -44,12 +47,16 @@ int sendToClient(char *message)
 // 2 is waiting to find partner
 // 3 is connected
 
-int processConnect(char *message, int fd, int* used_fds)
+int processConnect(char *message, int fd)//, int* used_fds)
 {
   int x;
   int matched = 0;
   for(x = 0; x < MAX_SOCKETS+5; x++)
   {
+    if(blocks[fd] != 0)
+      break;
+    if(blocks[x] != 0)
+      continue;
     if(x != fd && used_fds[x] == 2)
     {
       matched = 1;
@@ -86,11 +93,11 @@ int processConnect(char *message, int fd, int* used_fds)
 
 
 // fd is sending Client's number
-int processCommand(char *message, int fd, int* used_fds)
+int processCommand(char *message, int fd)//, int* used_fds)
 {
   printf("Processing...%d\n", fd);
   if(strstr(message, "/CHAT") != NULL)
-  { processConnect(message, fd, used_fds); }
+    { processConnect(message, fd); }//, used_fds); }
   else if(strstr(message, "/FLAG") != NULL)
   {
     // Flag fd's partner
@@ -104,7 +111,7 @@ int processCommand(char *message, int fd, int* used_fds)
     // check if the client being flagged is actually still conencted
     if(used_fds[id] == 3)
     {
-      flags[id] = 1; // Currently has no effect
+      flags[id] += 1; // Currently has no effect
     }
   }
   else if(strstr(message, "/CONN") != NULL)
@@ -177,6 +184,83 @@ int processCommand(char *message, int fd, int* used_fds)
   return 0;
 }
 
+/*
+THROWOUT
+START
+END
+ */
+
+void *admin_commands(void *socket)
+{
+  int * socket_fd = (int *)socket;
+  while(1)
+  {
+    // read user commands and parse them
+    char buffer[256];
+    bzero(buffer, 256);
+    fgets(buffer, 255, stdin);
+
+    if(strstr(buffer, "/STATS") != NULL)
+    {
+      int x;
+      int sQueue = 0, sChat =0;
+      for(x = 0; x < MAX_SOCKETS; x++)
+      {
+	if(used_fds[x] == 2)
+	  sQueue += 1;
+	else if(used_fds[x] == 3)
+	  sChat += 1;
+	if(flags[x] != 0)
+	  printf("User %d - %s has been flagged %d times.\n", x, nicknames[x], flags[x]);
+	if(blocks[x] != 0)
+	  printf("User %d - %s has been BLOCKED from entering chat.\n", x, nicknames[x]);
+	//TODO Add data usage and tracking of data usage and
+      }
+      printf("%d users are in chat, and %d users are waiting in queue.\n", sChat, sQueue);
+    }
+    // takes a user's numerical ID
+    else if(strstr(buffer, "/BLOCK") != NULL)
+    {
+      char fd_id [5];
+      memcpy(fd_id, &buffer[0], 4);
+      fd_id[4] = '\0';
+      int id = strtoul(fd_id, NULL, 10);
+      if(id == 0 || id > MAX_SOCKETS)
+	perror("Invalid cient ID\n");
+      else
+	blocks[id] = 1;
+    }
+    // takes a user's numerical ID
+    else if(strstr(buffer, "/UNBLOCK") != NULL)
+    {
+      char fd_id [5];
+      memcpy(fd_id, &buffer[0], 4);
+      fd_id[4] = '\0';
+      int id = strtoul(fd_id, NULL, 10);
+      if(id == 0 || id > MAX_SOCKETS)
+	perror("Invalid cient ID\n");
+      else
+	blocks[id] = 0;
+    }
+    else if(strstr(buffer, "/THROW") != NULL)
+      {
+	//TODO Issued	 by	 the	 admin	 to	 the	 TRS,	 which	results	 in	 the	 TRS	throwing	out	a	client	from	a	channel,	and	destroying	the	channel	they	were	using.	
+    }
+    else if(strstr(buffer, "/STATS") != NULL)
+      {
+    }
+    else if(strstr(buffer, "/STATS") != NULL)
+      {
+    }
+    else if(strstr(buffer, "/STATS") != NULL)
+      {
+    }
+    else
+    {
+      printf("Unknown admin command.\n");
+    }
+  }
+}
 
 int main (int argc, char *argv[] ){
 
@@ -186,7 +270,7 @@ int main (int argc, char *argv[] ){
   struct sockaddr_in server_addr, client_addr;
   int n, i, number_sockets = 0;
   int client_fd[MAX_SOCKETS];
-  int used_fds[MAX_SOCKETS+5];
+
   
   //init fd to socket type
   socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -224,7 +308,11 @@ int main (int argc, char *argv[] ){
   
   FD_ZERO(&fd_master_set);
   FD_SET(socket_fd, &fd_master_set);
+
+  pthread_t admin_thread;
   
+  if(pthread_create(&admin_thread, NULL, admin_commands, &socket_fd))
+  { fprintf(stderr, "Error creating admin thread\n"); exit(1);}
   
   while(1){
     
@@ -271,7 +359,7 @@ int main (int argc, char *argv[] ){
 	  //handles all messages
 	  if(sendToClient(buffer) == 0)
 	  {
-	    processCommand(buffer, i, used_fds);
+	    processCommand(buffer, i);//, used_fds);
 	  }
 	  
 	}
