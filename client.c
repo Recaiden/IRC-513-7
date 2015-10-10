@@ -21,10 +21,20 @@ void *read_chat(void *socket)
       sleep(1); //sleep some time while waiting for a message
     } else {
       //display message
-      if(strlen(chat_buffer) < 2){
-	friend_fd = atoi(chat_buffer);
+      //if(strlen(chat_buffer) < 2){
+      if(friend_fd == 0 && strchr(chat_buffer, '|') != NULL){
+	int index = strchr(chat_buffer, '|') - chat_buffer + 1;
+
+	char fd_id [5];
+	char stripped_message [251];
+	memcpy(fd_id, &chat_buffer[0], index);
+	memcpy(stripped_message, &chat_buffer[index], 256 - index -1);
+
+	friend_fd = atoi(fd_id);
+	
+	printf("You are chatting with %s\n", stripped_message);
       } else {
-	printf("%s", chat_buffer);
+	printf("%s\n", chat_buffer);
       }
     }
   }		

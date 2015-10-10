@@ -10,6 +10,7 @@
 #define MAX_SOCKETS  10
 
 int flags [MAX_SOCKETS];
+char nicknames [MAX_SOCKETS][256];
 
 
 /*
@@ -53,21 +54,23 @@ int processConnect(char *message, int fd, int* used_fds)
     {
       matched = 1;
       int n;
-      char str[5];
-      char str2[5];
-      
-      sprintf(str, "%d", x);
+      char str[251];
+      char str2[251];
+
+      // Write to partner who triggered connection
+      sprintf(str, "%d|%s", x, nicknames[x]);
       n = write(fd, str, strlen(str));
       if(n < 0)
       { perror("Error writing to client");  exit(1); }
-      
-      sprintf(str2, "%d", fd);
+      used_fds[fd] = 3;
+
+      // Write to waiting partner who was first to connect
+      sprintf(str2, "%d|%s", fd, nicknames[fd]);
       n = write(x, str2, strlen(str2));
       if(n < 0)
       { perror("Error writing to client");  exit(1); }
-	
       used_fds[x] = 3;
-      used_fds[fd] = 3;
+      
       printf("Matched! Connecting %d and %d\n", x, fd);
       break;
     } 
@@ -106,9 +109,18 @@ int processCommand(char *message, int fd, int* used_fds)
   }
   else if(strstr(message, "/CONN") != NULL)
   {
-    char response[256];
-    bzero(response, 256);
-    sprintf(response, "");
+    char stripped_message [246];
+    memcpy(stripped_message, &message[9], 246);
+    //char fd_id [5];
+    //memcpy(fd_id, &message[0], 4);
+    //fd_id[4] = '\0';
+    //int id = strtoul(fd_id, NULL, 10);
+
+    memcpy(nicknames[fd], stripped_message, 246);
+    
+    char response[356];
+    bzero(response, 356);
+    sprintf(response, "You are now connected as %s", nicknames[fd]);
     int n = write(fd, response, strlen(response));
     if(n < 0)
     { perror("Error writing to client");  exit(1); }
