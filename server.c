@@ -28,7 +28,9 @@ int sendToClient(char *message)
   memcpy(stripped_message, &message[4], 251);
   fd_id[4] = '\0';
   int id = strtoul(fd_id, NULL, 10);
-  //printf("id: %d\n", id);
+
+  if(strchr(stripped_message, '/') != NULL)
+    return 0;
   if(id > 1)
   {
     int n = write(id, stripped_message, strlen(stripped_message));
@@ -95,7 +97,7 @@ int processConnect(char *message, int fd)//, int* used_fds)
 // fd is sending Client's number
 int processCommand(char *message, int fd)//, int* used_fds)
 {
-  printf("Processing...%d\n", fd);
+  printf("Processing command message from User %d\n", fd);
   if(strstr(message, "/CHAT") != NULL)
     { processConnect(message, fd); }//, used_fds); }
   else if(strstr(message, "/FLAG") != NULL)
@@ -108,9 +110,12 @@ int processCommand(char *message, int fd)//, int* used_fds)
     fd_id[4] = '\0';
     int id = strtoul(fd_id, NULL, 10);
 
+    printf("User %d flagged by User %d\n", id, fd);
+
     // check if the client being flagged is actually still conencted
     if(used_fds[id] == 3)
     {
+      printf("Flagging done\n");
       flags[id] += 1; // Currently has no effect
     }
   }
@@ -178,7 +183,7 @@ int processCommand(char *message, int fd)//, int* used_fds)
     sprintf(response, "Command not Found");
     int n = write(fd, response, strlen(response));
     if(n < 0)
-      { perror("Error writing to client");  exit(1); }
+    { perror("Error writing to client");  exit(1); }
   }
   // compare to keywords for connecting chats blocking people etc.
   return 0;
@@ -322,33 +327,35 @@ int main (int argc, char *argv[] ){
       perror("Select Failed");
       exit(1);
     }
-    for(i = 0; i < FD_SETSIZE; i++){
-      if(FD_ISSET(i, &read_set)){
-	if(i == socket_fd){
-	  if(number_sockets < MAX_SOCKETS){
+    for(i = 0; i < FD_SETSIZE; i++)
+    {
+      if(FD_ISSET(i, &read_set))
+      {
+	if(i == socket_fd)
+	{
+	  if(number_sockets < MAX_SOCKETS)
+	  {
 	    //accept new connection from client
 	    client_fd[number_sockets] = 
 	      accept(socket_fd, (struct sockaddr *)&client_addr, &client_len);
-	    if(client_fd[number_sockets] < 0){
-	      perror("Error accepting client");
-	      exit(1);
-	    }
+	    if(client_fd[number_sockets] < 0)
+	    { perror("Error accepting client"); exit(1); }
 	    printf("Client accepted.\n");
 	    used_fds[client_fd[number_sockets]] = 1;
 	    FD_SET(client_fd[number_sockets], &fd_master_set);
 	    number_sockets++;
 
 	    // Create chatroom
-	  } else {
-	    printf("No more connection space");
 	  }
+	  else
+	  { printf("No more connection space"); }
 	} else {  
 	  //begin communication
 	  bzero(buffer, 256);
 	  n = read(i, buffer, 255);
 	  if(n < 0){
 	    perror("Error reading from client");
-	    //exit(1);
+	    //continue;
 	    // Do not exit, mark that client as disconnected, inform their partner, and continue
 	    //TODO
 	  }
