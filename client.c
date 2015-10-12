@@ -9,8 +9,16 @@
 
 #define SIZE_FILE_MAX 104857600
 
-int friend_fd = 0;
+/*
+Because our chat system does not follow a send/response protocol 
+We need to have a millisecond delay in order to avoid multiple messages from 
+being sent into a single buffer to the server.  
+*/
+struct timespec ts;
 
+int friend_fd = 0;
+int receivingFile = 0;
+FILE *file;
 
 int transfer_file(int socket_fd, char* filename)
 {
@@ -32,13 +40,21 @@ int transfer_file(int socket_fd, char* filename)
     if(nread > 0)
     {
       strcat(packaged, buffer);
-      printf(".");
-      write(socket_fd, packaged, nread+5);
+      //printf(".\n");
+      write(socket_fd, packaged, strlen(packaged));
+      nanosleep(&ts, NULL);
     }    
-    if (nread < 256)
+    if (nread < 251)
     {
       if (feof(fp))
       {
+      bzero(packaged, 256);
+      bzero(buffer, 251);
+      sprintf(packaged, "%04d", friend_fd);
+      sprintf(buffer, "/ENDF");
+      strcat(packaged, buffer);
+      write(socket_fd, packaged, strlen(packaged));
+      nanosleep(&ts, NULL);
 	printf("End of file\n");
 	return 0;
       }
@@ -73,7 +89,7 @@ void *read_chat(void *socket)
     } else {
       //display message
       //if(strlen(chat_buffer) < 2){
-      if(friend_fd == 0 && strchr(chat_buffer, '|') != NULL){
+  if(friend_fd == 0 && strchr(chat_buffer, '|') != NULL){
 	int index = strchr(chat_buffer, '|') - chat_buffer + 1;
 
 	char fd_id [5];
@@ -88,24 +104,47 @@ void *read_chat(void *socket)
       }
       else if (0)
       {
-	//TODO if we're receiving a file
+
 	perror("How are you here?\n");
       }
       // Chatroom was closed
       else if (strstr(chat_buffer, "/PART") != NULL)
       {
-	friend_fd = 0;
-	printf("%s\n", &chat_buffer[5]);
+      	friend_fd = 0;
+      	printf("%s\n", &chat_buffer[5]);
+      }
+     else if (strstr(chat_buffer, "/FILE") != NULL)
+      {
+        char* filename = strrchr(chat_buffer, '/');
+        filename++;
+
+        receivingFile = 1;
+        file = fopen(filename, "wb");
+        printf("created file\n");
+
+      }
+      else if (strstr(chat_buffer, "/ENDF") != NULL){
+          receivingFile = 0;
+          fclose(file);
+          printf("File transfer Complete\n");
+      }
+      else if(receivingFile == 1)
+      {
+        //printf("sent file chunck.\n");
+        fwrite(chat_buffer, 1, strlen(chat_buffer), file);
+        nanosleep(&ts, NULL);
       }
       else
       {
-	printf("%s\n", chat_buffer);
+	       printf("%s\n", chat_buffer);
       }
     }
   }		
 }
 
 int main(int argc, char *argv[]){
+  ts.tv_sec = 1 / 1000;
+  ts.tv_nsec = (1 % 1000) * 1000000;
   
   int socket_fd, port_num, n;
   struct sockaddr_in server_addr;
@@ -194,11 +233,12 @@ int main(int argc, char *argv[]){
       }
 
       //printf("File %s, Size is %d\n", filename, size);
-      strcat(packaged, "/FILE");
+      strcat(packaged, "/FILE/");
       strcat(packaged, filename);
       
       //send message to server
       n = write(socket_fd, packaged, strlen(packaged));
+      nanosleep(&ts, NULL);
       if(n < 0)
       { perror("Error writing to server"); exit(1); }
 
@@ -211,6 +251,7 @@ int main(int argc, char *argv[]){
       strcat(packaged, buffer);
       //send message to server
       n = write(socket_fd, packaged, strlen(packaged));
+      nanosleep(&ts, NULL);
       if(n < 0)
       { perror("Error writing to server"); exit(1); }
     }

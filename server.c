@@ -15,12 +15,16 @@ int blocks [MAX_SOCKETS];
 char nicknames [MAX_SOCKETS][256];
 int used_fds[MAX_SOCKETS+5];
 int partners[MAX_SOCKETS];
+int data_use[MAX_SOCKETS];
 
 
 int reset_partners(int id_quitting)
 {
   partners[partners[id_quitting]] = 0;
   partners[id_quitting] = 0;
+  data_use[partners[id_quitting]] = 0;
+  data_use[id_quitting] = 0;
+
   return 0;
 }
 
@@ -203,8 +207,29 @@ int processCommand(char *message, int fd)//, int* used_fds)
   }
   else if(strstr(message, "/FILE") != NULL)
   {
-    //
-    perror("unfinished code.");
+      char fd_id [5];
+      char stripped_message [251];
+      bzero(stripped_message, 251);
+      memcpy(fd_id, &message[0], 4);
+      memcpy(stripped_message, &message[4], 251);
+      fd_id[4] = '\0';
+      int id = strtoul(fd_id, NULL, 10);
+    int n = write(id, stripped_message, strlen(stripped_message));
+    if(n < 0)
+    { perror("Error writing to client");  exit(1); }
+
+  }
+  else if(strstr(message, "/ENDF") != NULL){
+      char fd_id [5];
+      char stripped_message [251];
+      bzero(stripped_message, 251);
+      memcpy(fd_id, &message[0], 4);
+      memcpy(stripped_message, &message[4], 251);
+      fd_id[4] = '\0';
+      int id = strtoul(fd_id, NULL, 10);
+    int n = write(id, stripped_message, strlen(stripped_message));
+    if(n < 0)
+    { perror("Error writing to client");  exit(1); }
   }
   else
   {
@@ -219,13 +244,7 @@ int processCommand(char *message, int fd)//, int* used_fds)
   return 0;
 }
 
-/*
-THROWOUT
-START
-END
- */
-
-void *admin_commands(void *socket)
+int admin_commands(void *socket)
 {
   int * socket_fd = (int *)socket;
   while(1)
@@ -249,7 +268,9 @@ void *admin_commands(void *socket)
 	  printf("User %d - %s has been flagged %d times.\n", x, nicknames[x], flags[x]);
 	if(blocks[x] != 0)
 	  printf("User %d - %s has been BLOCKED from entering chat.\n", x, nicknames[x]);
-	//TODO Add data usage and tracking of data usage and
+  if(partners[x]>0 && partners[x] > partners[partners[x]]){
+    printf("ChatRoom with %s and %s data usage: %dbytes\n",nicknames[x], nicknames[partners[x]], (data_use[x]+data_use[partners[x]]) );
+  }
       }
       printf("%d users are in chat, and %d users are waiting in queue.\n", sChat, sQueue);
     }
@@ -279,16 +300,69 @@ void *admin_commands(void *socket)
     }
     else if(strstr(buffer, "/THROW") != NULL)
       {
-	//TODO Issued	 by	 the	 admin	 to	 the	 TRS,	 which	results	 in	 the	 TRS	throwing	out	a	client	from	a	channel,	and	destroying	the	channel	they	were	using.	
+	  int n;
+    char fd_id [5];
+    memcpy(fd_id, &buffer[0], 4);
+    fd_id[4] = '\0';
+    int id = strtoul(fd_id, NULL, 10);
+    int fd = partners[id];
+    char str[256];
+    char str2[256];
+
+    // Disconnect requester
+    sprintf(str, "/PARTYour Channel has been ended by the admin.\n");
+    n = write(fd, str, strlen(str));
+    if(n < 0)
+    { perror("Error writing quit to quitter");  return 1; }
+    used_fds[fd] = 1;
+
+    // Disconnect their partner
+    sprintf(str2, "/PARTYour Channel has been ended by the admin.\n");
+    n = write(id, str2, strlen(str2));
+    if(n < 0)
+    { perror("Error writing quit to partner");  return 1; }
+    used_fds[id] = 1;
+
+    reset_partners(id);
+    
     }
-    else if(strstr(buffer, "/STATS") != NULL)
+    else if(strstr(buffer, "/START") != NULL)
       {
+        printf("Server has already been started.\n");
     }
-    else if(strstr(buffer, "/STATS") != NULL)
-      {
-    }
-    else if(strstr(buffer, "/STATS") != NULL)
-      {
+    else if(strstr(buffer, "/END") != NULL)
+    {
+      int id = 0;
+      char str[256];
+      for(id = 0; id < MAX_SOCKETS; id++) {
+        if(used_fds[id] == 2){
+          bzero(str, 256);
+          sprintf(str, "You've been removed from the que by the server.\n");
+
+          int n = write(id, str, strlen(str));
+          if(n < 0)
+          { perror("Error writing quit to partner");  return 1; }
+          used_fds[id] = 1;
+
+        }
+        else if(used_fds[id] == 3){
+          bzero(str, 256);
+          sprintf(str, "/PARTYour Channel has been ended by the admin.\n");
+
+          int n = write(id, str, strlen(str));
+          if(n < 0)
+          { perror("Error writing quit to partner");  return 1; }
+          used_fds[id] = 1;
+
+          n = write(partners[id], str, strlen(str));
+          if(n < 0)
+          { perror("Error writing quit to partner");  return 1; }
+          used_fds[partners[id]] = 1;
+          
+          reset_partners(id);
+        }
+      }
+
     }
     else
     {
@@ -297,8 +371,7 @@ void *admin_commands(void *socket)
   }
 }
 
-int main (int argc, char *argv[] ){
-
+int beginServer(){
   int socket_fd, port_num, client_len;
   fd_set fd_master_set, read_set;
   char buffer[256];
@@ -346,7 +419,7 @@ int main (int argc, char *argv[] ){
 
   pthread_t admin_thread;
   
-  if(pthread_create(&admin_thread, NULL, admin_commands, &socket_fd))
+  if(pthread_create(&admin_thread, NULL, (void *)admin_commands, &socket_fd))
   { fprintf(stderr, "Error creating admin thread\n"); exit(1);}
   
   while(1){
@@ -360,47 +433,69 @@ int main (int argc, char *argv[] ){
     {
       if(FD_ISSET(i, &read_set))
       {
-	if(i == socket_fd)
-	{
-	  if(number_sockets < MAX_SOCKETS)
-	  {
-	    //accept new connection from client
-	    client_fd[number_sockets] = 
-	      accept(socket_fd, (struct sockaddr *)&client_addr, &client_len);
-	    if(client_fd[number_sockets] < 0)
-	    { perror("Error accepting client"); exit(1); }
-	    printf("Client accepted.\n");
-	    used_fds[client_fd[number_sockets]] = 1;
-	    FD_SET(client_fd[number_sockets], &fd_master_set);
-	    number_sockets++;
-	  }
-	  else
-	  { printf("No more connection space"); }
-	} else {  
-	  //begin communication
-	  bzero(buffer, 256);
-	  n = read(i, buffer, 255);
-	  if(n < 0){
-	    perror("Error reading from client");
-	    // Do not exit, mark that client as D/C, inform their partner, carry one
-	    FD_CLR(i, &fd_master_set);
-	    FD_CLR(i, &read_set);
-	    handle_disconnect(i);
-	    continue;
-	  }
+  if(i == socket_fd)
+  {
+    if(number_sockets < MAX_SOCKETS)
+    {
+      //accept new connection from client
+      client_fd[number_sockets] = 
+        accept(socket_fd, (struct sockaddr *)&client_addr, &client_len);
+      if(client_fd[number_sockets] < 0)
+      { perror("Error accepting client"); exit(1); }
+      printf("Client accepted.\n");
+      used_fds[client_fd[number_sockets]] = 1;
+      FD_SET(client_fd[number_sockets], &fd_master_set);
+      number_sockets++;
+    }
+    else
+    { printf("No more connection space"); }
+  } else {  
+    //begin communication
+    bzero(buffer, 256);
+    n = read(i, buffer, 255);
+    if(n < 0){
+      perror("Error reading from client");
+      // Do not exit, mark that client as D/C, inform their partner, carry one
+      FD_CLR(i, &fd_master_set);
+      FD_CLR(i, &read_set);
+      handle_disconnect(i);
+      continue;
+    }
 
-	  //debug, message coming in
-	  printf(buffer);
-	  
-	  //handles all messages
-	  if(sendToClient(buffer) == 0)
-	  {
-	    processCommand(buffer, i);//, used_fds);
-	  }
-	  
-	}
+    //debug, message coming in
+    //printf(buffer);
+    //printf("prebuffed: %s END\n", buffer);
+    data_use[i] += strlen(buffer);
+    //handles all messages
+    if(sendToClient(buffer) == 0)
+    {
+      processCommand(buffer, i);//, used_fds);
+    }
+    
+  }
       }
     }
   }
+  return 0;
+}
+
+int initScreen(){
+  printf("To being accepting clients type /START\n");
+  char buffer[256];
+  while(1){
+    bzero(buffer, 256);
+    fgets(buffer, 255, stdin);
+    if(strstr(buffer, "/START") != NULL){
+      break;
+    }
+  }
+  beginServer();
+  return 0;
+}
+
+int main (int argc, char *argv[] ){
+  memset(data_use, 0, sizeof(data_use));
+  printf("Welcome to the CS513 Chat Server.\n");
+  initScreen();
   return 0;
 }
