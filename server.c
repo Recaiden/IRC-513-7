@@ -302,7 +302,7 @@ int admin_commands(void *socket)
       {
 	  int n;
     char fd_id [5];
-    memcpy(fd_id, &buffer[0], 4);
+    memcpy(fd_id, &buffer[7], 4);
     fd_id[4] = '\0';
     int id = strtoul(fd_id, NULL, 10);
     int fd = partners[id];
