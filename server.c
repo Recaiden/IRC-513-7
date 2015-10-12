@@ -505,6 +505,13 @@ int main (int argc, char *argv[] ){
   {
     printf("Machine Name: %s\n", unameData.sysname);
     printf("Host Name: %s\n", unameData.nodename);
+    char hostname[1024];
+    hostname[1023] = '\0';
+    gethostname(hostname, 1023);
+    printf("Hostname: %s\n", hostname);
+    struct hostent* h;
+    h = gethostbyname(hostname);
+    printf("h_name: %s\n", h->h_name);
 
   }
   initScreen();

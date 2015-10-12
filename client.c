@@ -17,6 +17,7 @@ being sent into a single buffer to the server.
 struct timespec ts;
 
 int friend_fd = 0;
+char friend_nick [256];
 int receivingFile = 0;
 FILE *file;
 
@@ -99,6 +100,8 @@ void *read_chat(void *socket)
 	fd_id[index] = '\0';
 
 	friend_fd = atoi(fd_id);
+	strcpy(friend_nick, stripped_message);
+	       //	friend_nick = stripped_message;
 	
 	printf("You are chatting with %s\n", stripped_message);
       }
@@ -111,12 +114,13 @@ void *read_chat(void *socket)
       else if (strstr(chat_buffer, "/PART") != NULL)
       {
       	friend_fd = 0;
+	memset(friend_nick,0,sizeof(friend_nick));
       	printf("%s\n", &chat_buffer[5]);
       }
       // Hack to prevent triggering file creation, should compare indices of strings
       else if (strstr(chat_buffer, "/HELP") != NULL)
       {
-	printf("%s\n", chat_buffer);
+	printf("%s: %s\n", friend_nick, chat_buffer);
       }
      else if (strstr(chat_buffer, "/FILE") != NULL)
       {
@@ -141,7 +145,7 @@ void *read_chat(void *socket)
       }
       else
       {
-	printf("%s\n", chat_buffer);
+	printf("%s: %s\n", friend_nick, chat_buffer);
       }
     }
   }		
@@ -209,9 +213,9 @@ int main(int argc, char *argv[]){
     fprintf(stderr, "Error creating reader thread\n");
     exit(1);
   }
-  
+
+  printf("Please enter your messages: ");
   while(1){
-    printf("Please enter a message: ");
     
     //create message for server
     bzero(packaged, 255);
