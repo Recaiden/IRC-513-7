@@ -154,6 +154,8 @@ void *read_chat(void *socket)
 	if(strlen(chat_buffer) == 0)
 	{
 	  printf("The server is no longer available.  Closing client.\n");
+	  if(receivingFile)
+	    fclose(file);
 	  exit(0);
 	}
 	printf("%s: %s\n", friend_nick, chat_buffer);
