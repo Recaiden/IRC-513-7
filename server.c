@@ -9,13 +9,14 @@
 
 #define PORT 6660
 
-#define MAX_SOCKETS  10
+#define MAX_CLIENTS 10
+#define MAX_SOCKETS  MAX_CLIENTS+5
 #define PACKET_SIZE 1024
 
 int flags [MAX_SOCKETS];
 int blocks [MAX_SOCKETS];
 char nicknames [MAX_SOCKETS][PACKET_SIZE];
-int used_fds[MAX_SOCKETS+5];
+int used_fds[MAX_SOCKETS];
 int partners[MAX_SOCKETS];
 int data_use[MAX_SOCKETS];
 
@@ -90,7 +91,7 @@ int processConnect(char *message, int fd)//, int* used_fds)
 {
   int x;
   int matched = 0;
-  for(x = 0; x < MAX_SOCKETS+5; x++)
+  for(x = 0; x < MAX_SOCKETS; x++)
   {
     if(blocks[fd] != 0)
       break;
@@ -454,7 +455,7 @@ int beginServer(){
       {
   if(i == socket_fd)
   {
-    if(number_sockets < MAX_SOCKETS)
+    if(number_sockets < MAX_CLIENTS)//MAX_SOCKETS)
     {
       //accept new connection from client
       client_fd[number_sockets] = 
@@ -467,7 +468,29 @@ int beginServer(){
       number_sockets++;
     }
     else
-    { printf("No more connection space"); }
+    {
+      printf("No more connection space\n");
+      
+      client_fd[number_sockets] = 
+        accept(socket_fd, (struct sockaddr *)&client_addr, &client_len);
+      if(client_fd[number_sockets] < 0)
+      { perror("Error accepting client"); exit(1); }
+      
+      printf("Overflow client temporarily accepted.\n");
+      FD_SET(client_fd[number_sockets], &fd_master_set);
+
+      char* str = "/ERRThe queue is full, you cannot connect at this time.\n";
+      int n = write(client_fd[number_sockets], str, strlen(str));
+      if(n < 0)
+      {
+	perror("Error informing client of full queue");
+	exit(1);
+      }
+      //used_fds[client_fd[number_sockets]] = 1;
+      //FD_SET(client_fd[number_sockets], &fd_master_set);
+      FD_CLR(client_fd[number_sockets], &fd_master_set);
+      //number_sockets --;
+    }
   } else {  
     //begin communication
     bzero(buffer, PACKET_SIZE);
@@ -478,6 +501,7 @@ int beginServer(){
       FD_CLR(i, &fd_master_set);
       FD_CLR(i, &read_set);
       handle_disconnect(i);
+      number_sockets --;
       continue;
     }
 

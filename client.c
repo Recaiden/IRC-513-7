@@ -108,8 +108,13 @@ void *read_chat(void *socket)
       }
       else if (0)
       {
-
 	perror("How are you here?\n");
+      }
+      else if (strstr(chat_buffer, "/ERR") != NULL)
+      {
+      	printf("%s\n", &chat_buffer[4]);
+	printf("The client will now close.\n");
+	exit(0);
       }
       // Chatroom was closed
       else if (strstr(chat_buffer, "/PART") != NULL)
