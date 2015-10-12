@@ -10,13 +10,16 @@
 #define PORT 6660
 
 #define MAX_SOCKETS  10
+#define PACKET_SIZE 1024
 
 int flags [MAX_SOCKETS];
 int blocks [MAX_SOCKETS];
-char nicknames [MAX_SOCKETS][256];
+char nicknames [MAX_SOCKETS][PACKET_SIZE];
 int used_fds[MAX_SOCKETS+5];
 int partners[MAX_SOCKETS];
 int data_use[MAX_SOCKETS];
+
+int running = 0;
 
 
 int reset_partners(int id_quitting)
@@ -31,7 +34,7 @@ int reset_partners(int id_quitting)
 
 int handle_disconnect(int i)
 {
-  char str2[256];
+  char str2[PACKET_SIZE];
   int n;
   
   // Disconnect their partner
@@ -56,9 +59,9 @@ int handle_disconnect(int i)
 int sendToClient(char *message)
 {
   char fd_id [5];
-  char stripped_message [251];
+  char stripped_message [PACKET_SIZE-5];
   memcpy(fd_id, &message[0], 4);
-  memcpy(stripped_message, &message[4], 251);
+  memcpy(stripped_message, &message[4], PACKET_SIZE-5);
   fd_id[4] = '\0';
   int id = strtoul(fd_id, NULL, 10);
 
@@ -96,8 +99,8 @@ int processConnect(char *message, int fd)//, int* used_fds)
     {
       matched = 1;
       int n;
-      char str[251];
-      char str2[251];
+      char str[PACKET_SIZE-5];
+      char str2[PACKET_SIZE-5];
 
       // Write to partner who triggered connection
       sprintf(str, "%d|%s", x, nicknames[x]);
@@ -137,9 +140,9 @@ int processCommand(char *message, int fd)//, int* used_fds)
   {
     // Flag fd's partner
     char fd_id [5];
-    char stripped_message [251];
+    char stripped_message [PACKET_SIZE-5];
     memcpy(fd_id, &message[0], 4);
-    memcpy(stripped_message, &message[4], 251);
+    memcpy(stripped_message, &message[4], PACKET_SIZE-5);
     fd_id[4] = '\0';
     int id = strtoul(fd_id, NULL, 10);
 
@@ -154,14 +157,14 @@ int processCommand(char *message, int fd)//, int* used_fds)
   }
   else if(strstr(message, "/CONN") != NULL)
   {
-    char stripped_message [246];
-    memcpy(stripped_message, &message[9], 246);
+    char stripped_message [PACKET_SIZE-10];
+    memcpy(stripped_message, &message[9], PACKET_SIZE-10);
     //char fd_id [5];
     //memcpy(fd_id, &message[0], 4);
     //fd_id[4] = '\0';
     //int id = strtoul(fd_id, NULL, 10);
 
-    memcpy(nicknames[fd], stripped_message, 246);
+    memcpy(nicknames[fd], stripped_message, PACKET_SIZE-10);
     
     char response[356];
     bzero(response, 356);
@@ -172,8 +175,8 @@ int processCommand(char *message, int fd)//, int* used_fds)
   }
   else if(strstr(message, "/HELP") != NULL)
   {
-    char response[256];
-    bzero(response, 256);
+    char response[PACKET_SIZE];
+    bzero(response, PACKET_SIZE);
     sprintf(response, "/HELP The server accepts the following commands:\n/CHAT to enter a chatroom\n/FLAG to report misbehavior by your partner\n/FILE path/to/file to begin transferring a file to your partner\n/QUIT to leave your chat.");
     int n = write(fd, response, strlen(response));
     if(n < 0)
@@ -187,8 +190,8 @@ int processCommand(char *message, int fd)//, int* used_fds)
     fd_id[4] = '\0';
     int id = strtoul(fd_id, NULL, 10);
 
-    char str[256];
-    char str2[256];
+    char str[PACKET_SIZE];
+    char str2[PACKET_SIZE];
 
     // Disconnect requester
     sprintf(str, "/PARTYou have left from the chatroom.  You will return to the queue.\n");
@@ -209,10 +212,10 @@ int processCommand(char *message, int fd)//, int* used_fds)
   else if(strstr(message, "/FILE") != NULL)
   {
       char fd_id [5];
-      char stripped_message [251];
-      bzero(stripped_message, 251);
+      char stripped_message [PACKET_SIZE-5];
+      bzero(stripped_message, PACKET_SIZE-5);
       memcpy(fd_id, &message[0], 4);
-      memcpy(stripped_message, &message[4], 251);
+      memcpy(stripped_message, &message[4], PACKET_SIZE-5);
       fd_id[4] = '\0';
       int id = strtoul(fd_id, NULL, 10);
     int n = write(id, stripped_message, strlen(stripped_message));
@@ -222,10 +225,10 @@ int processCommand(char *message, int fd)//, int* used_fds)
   }
   else if(strstr(message, "/ENDF") != NULL){
       char fd_id [5];
-      char stripped_message [251];
-      bzero(stripped_message, 251);
+      char stripped_message [PACKET_SIZE-5];
+      bzero(stripped_message, PACKET_SIZE-5);
       memcpy(fd_id, &message[0], 4);
-      memcpy(stripped_message, &message[4], 251);
+      memcpy(stripped_message, &message[4], PACKET_SIZE-5);
       fd_id[4] = '\0';
       int id = strtoul(fd_id, NULL, 10);
     int n = write(id, stripped_message, strlen(stripped_message));
@@ -234,8 +237,8 @@ int processCommand(char *message, int fd)//, int* used_fds)
   }
   else
   {
-    char response[256];
-    bzero(response, 256);
+    char response[PACKET_SIZE];
+    bzero(response, PACKET_SIZE);
     sprintf(response, "Command not Found");
     int n = write(fd, response, strlen(response));
     if(n < 0)
@@ -251,9 +254,9 @@ int admin_commands(void *socket)
   while(1)
   {
     // read user commands and parse them
-    char buffer[256];
-    bzero(buffer, 256);
-    fgets(buffer, 255, stdin);
+    char buffer[PACKET_SIZE];
+    bzero(buffer, PACKET_SIZE);
+    fgets(buffer, PACKET_SIZE-1, stdin);
 
     if(strstr(buffer, "/STATS") != NULL)
     {
@@ -307,8 +310,8 @@ int admin_commands(void *socket)
     fd_id[4] = '\0';
     int id = strtoul(fd_id, NULL, 10);
     int fd = partners[id];
-    char str[256];
-    char str2[256];
+    char str[PACKET_SIZE];
+    char str2[PACKET_SIZE];
 
     // Disconnect requester
     sprintf(str, "/PARTYour Channel has been ended by the admin.\n");
@@ -328,26 +331,29 @@ int admin_commands(void *socket)
     
     }
     else if(strstr(buffer, "/START") != NULL)
-      {
-        printf("Server has already been started.\n");
+    {
+      if(running == 0)
+	beginServer();
+      else
+	printf("Server has already been started.\n");
     }
     else if(strstr(buffer, "/END") != NULL)
     {
       int id = 0;
-      char str[256];
+      char str[PACKET_SIZE];
       for(id = 0; id < MAX_SOCKETS; id++) {
         if(used_fds[id] == 2){
-          bzero(str, 256);
-          sprintf(str, "You've been removed from the que by the server.\n");
+          bzero(str, PACKET_SIZE);
+          sprintf(str, "You've been removed from the queue by the server.\n");
 
           int n = write(id, str, strlen(str));
           if(n < 0)
-          { perror("Error writing quit to partner");  return 1; }
+          { perror("Error writing quit to queue");  return 1; }
           used_fds[id] = 1;
 
         }
         else if(used_fds[id] == 3){
-          bzero(str, 256);
+          bzero(str, PACKET_SIZE);
           sprintf(str, "/PARTYour Channel has been ended by the admin.\n");
 
           int n = write(id, str, strlen(str));
@@ -363,7 +369,10 @@ int admin_commands(void *socket)
           reset_partners(id);
         }
       }
-
+      printf("Closing server socket.\n");
+      shutdown((int)socket_fd, SHUT_RDWR);
+      close((int)socket_fd);
+      running = 0;
     }
     else
     {
@@ -375,7 +384,7 @@ int admin_commands(void *socket)
 int beginServer(){
   int socket_fd, port_num, client_len;
   fd_set fd_master_set, read_set;
-  char buffer[256];
+  char buffer[PACKET_SIZE];
   struct sockaddr_in server_addr, client_addr;
   int n, i, number_sockets = 0;
   int client_fd[MAX_SOCKETS];
@@ -418,6 +427,8 @@ int beginServer(){
   FD_ZERO(&fd_master_set);
   FD_SET(socket_fd, &fd_master_set);
 
+  running = 1;
+
   pthread_t admin_thread;
   
   if(pthread_create(&admin_thread, NULL, (void *)admin_commands, &socket_fd))
@@ -452,8 +463,8 @@ int beginServer(){
     { printf("No more connection space"); }
   } else {  
     //begin communication
-    bzero(buffer, 256);
-    n = read(i, buffer, 255);
+    bzero(buffer, PACKET_SIZE);
+    n = read(i, buffer, PACKET_SIZE-1);
     if(n < 0){
       perror("Error reading from client");
       // Do not exit, mark that client as D/C, inform their partner, carry one
@@ -482,10 +493,10 @@ int beginServer(){
 
 int initScreen(){
   printf("To being accepting clients type /START\n");
-  char buffer[256];
+  char buffer[PACKET_SIZE];
   while(1){
-    bzero(buffer, 256);
-    fgets(buffer, 255, stdin);
+    bzero(buffer, PACKET_SIZE);
+    fgets(buffer, PACKET_SIZE-1, stdin);
     if(strstr(buffer, "/START") != NULL){
       break;
     }

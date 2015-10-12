@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 
 #define SIZE_FILE_MAX 104857600
+#define PACKET_SIZE 1024
 
 /*
 Because our chat system does not follow a send/response protocol 
@@ -17,14 +18,14 @@ being sent into a single buffer to the server.
 struct timespec ts;
 
 int friend_fd = 0;
-char friend_nick [256];
+char friend_nick [PACKET_SIZE];
 int receivingFile = 0;
 FILE *file;
 
 int transfer_file(int socket_fd, char* filename)
 {
-  char packaged[256];
-  char buffer[251];
+  char packaged[PACKET_SIZE];
+  char buffer[PACKET_SIZE-5];
   
   FILE *fp;
   fp = fopen(filename, "rb"); 
@@ -33,10 +34,10 @@ int transfer_file(int socket_fd, char* filename)
 
   while(1)
   {
-    bzero(packaged, 256);
-    bzero(buffer, 251);
+    bzero(packaged, PACKET_SIZE);
+    bzero(buffer, PACKET_SIZE-5);
     
-    int nread = fread(buffer, 1, 251, fp);
+    int nread = fread(buffer, 1, PACKET_SIZE-5, fp);
     sprintf(packaged, "%04d", friend_fd);
     if(nread > 0)
     {
@@ -45,12 +46,12 @@ int transfer_file(int socket_fd, char* filename)
       write(socket_fd, packaged, strlen(packaged));
       nanosleep(&ts, NULL);
     }    
-    if (nread < 251)
+    if (nread < PACKET_SIZE-5)
     {
       if (feof(fp))
       {
-      bzero(packaged, 256);
-      bzero(buffer, 251);
+      bzero(packaged, PACKET_SIZE);
+      bzero(buffer, PACKET_SIZE-5);
       sprintf(packaged, "%04d", friend_fd);
       sprintf(buffer, "/ENDF");
       strcat(packaged, buffer);
@@ -79,12 +80,12 @@ int transfer_file(int socket_fd, char* filename)
 void *read_chat(void *socket)
 {
   int n;
-  char chat_buffer[256];
+  char chat_buffer[PACKET_SIZE];
   int * socket_fd = (int *)socket;
   while(1){
     //read server response
-    bzero(chat_buffer, 256);
-    n = read((* socket_fd), chat_buffer, 255);
+    bzero(chat_buffer, PACKET_SIZE);
+    n = read((* socket_fd), chat_buffer, PACKET_SIZE-1);
     if(n < 0){
       sleep(1); //sleep some time while waiting for a message
     } else {
@@ -94,7 +95,7 @@ void *read_chat(void *socket)
 	int index = strchr(chat_buffer, '|') - chat_buffer + 1;
 
 	char fd_id [5];
-	char stripped_message [251];
+	char stripped_message [PACKET_SIZE-5];
 	memcpy(fd_id, &chat_buffer[0], n);
 	memcpy(stripped_message, &chat_buffer[index], n - index -1);
 	fd_id[index] = '\0';
@@ -158,8 +159,8 @@ int main(int argc, char *argv[]){
   int socket_fd, port_num, n;
   struct sockaddr_in server_addr;
   struct hostent * server;
-  char packaged[256];
-  char buffer[251];
+  char packaged[PACKET_SIZE];
+  char buffer[PACKET_SIZE-5];
   
   //not given hostname and port
   if(argc <3){
@@ -196,9 +197,9 @@ int main(int argc, char *argv[]){
   // Identifying Connect command
   printf("Please enter your nickname: ");
   //create message for server
-  bzero(packaged, 255);
-  bzero(buffer, 251);
-  fgets(buffer, 250, stdin);
+  bzero(packaged, PACKET_SIZE-1);
+  bzero(buffer, PACKET_SIZE-5);
+  fgets(buffer, PACKET_SIZE-6, stdin);
   sprintf(packaged, "%04d/CONN", friend_fd);
   strcat(packaged, buffer);
   
@@ -218,9 +219,9 @@ int main(int argc, char *argv[]){
   while(1){
     
     //create message for server
-    bzero(packaged, 255);
-    bzero(buffer, 251);
-    fgets(buffer, 250, stdin);
+    bzero(packaged, PACKET_SIZE-1);
+    bzero(buffer, PACKET_SIZE-5);
+    fgets(buffer, PACKET_SIZE-6, stdin);
 
     sprintf(packaged, "%04d", friend_fd);  
 
@@ -228,8 +229,8 @@ int main(int argc, char *argv[]){
     if(strstr(buffer, "/FILE") == buffer)
     {
       buffer[strcspn(buffer, "\r\n")] = 0; // Trim newlines
-      char filename [244];
-      memcpy(filename, &buffer[6], 244);
+      char filename [PACKET_SIZE-12];
+      memcpy(filename, &buffer[6], PACKET_SIZE-12);
       int size;
       struct stat st;
       stat(filename, &st);
