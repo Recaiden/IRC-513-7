@@ -20,6 +20,7 @@ int partners[MAX_SOCKETS];
 int data_use[MAX_SOCKETS];
 
 int running = 0;
+int init = 0;
 
 
 int reset_partners(int id_quitting)
@@ -389,7 +390,7 @@ int beginServer(){
   int n, i, number_sockets = 0;
   int client_fd[MAX_SOCKETS];
 
-  
+
   //init fd to socket type
   socket_fd = socket(AF_INET, SOCK_STREAM, 0);
   
@@ -397,32 +398,38 @@ int beginServer(){
     perror("Error trying to open socket");
     exit(1);
   }
+
+  // Only run once.
+  if(init == 0)
+  {
+    init = 1;
   
-  //init socket
-  bzero((char *) &server_addr, sizeof(server_addr));  //zero out addr
-  port_num = PORT; // set port number
+    //init socket
+    bzero((char *) &server_addr, sizeof(server_addr));  //zero out addr
+    port_num = PORT; // set port number
   
-  //server_addr will contain address of server
-  server_addr.sin_family = AF_INET; // Needs to be AF_NET
-  server_addr.sin_addr.s_addr = htonl(INADDR_ANY); // contains ip address of host 
-  server_addr.sin_port = htons(port_num); //htons converts to network byte order
+    //server_addr will contain address of server
+    server_addr.sin_family = AF_INET; // Needs to be AF_NET
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY); // contains ip address of host 
+    server_addr.sin_port = htons(port_num); //htons converts to network byte order
   
-  int yes = 1;
-  if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) { 
-    perror("setsockopt"); 
-    exit(1); 
-  }  
+    int yes = 1;
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) { 
+      perror("setsockopt"); 
+      exit(1); 
+    }  
   
-  //bind the host address with bind()
-  if(bind(socket_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0){
-    perror("Error Binding");
-    exit(1);
+    //bind the host address with bind()
+    if(bind(socket_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0){
+      perror("Error Binding");
+      exit(1);
+    }
+    printf("Server listening for sockets on port:%d\n", port_num);
+    
+    //listen for clients
+    listen(socket_fd, MAX_SOCKETS);
+    client_len = sizeof(client_addr); // set client length
   }
-  printf("Server listening for sockets on port:%d\n", port_num);
-  
-  //listen for clients
-  listen(socket_fd, MAX_SOCKETS);
-  client_len = sizeof(client_addr); // set client length
   
   FD_ZERO(&fd_master_set);
   FD_SET(socket_fd, &fd_master_set);
