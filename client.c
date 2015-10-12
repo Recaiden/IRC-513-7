@@ -113,6 +113,11 @@ void *read_chat(void *socket)
       	friend_fd = 0;
       	printf("%s\n", &chat_buffer[5]);
       }
+      // Hack to prevent triggering file creation, should compare indices of strings
+      else if (strstr(chat_buffer, "/HELP") != NULL)
+      {
+	printf("%s\n", chat_buffer);
+      }
      else if (strstr(chat_buffer, "/FILE") != NULL)
       {
         char* filename = strrchr(chat_buffer, '/');
@@ -136,7 +141,7 @@ void *read_chat(void *socket)
       }
       else
       {
-	       printf("%s\n", chat_buffer);
+	printf("%s\n", chat_buffer);
       }
     }
   }		
