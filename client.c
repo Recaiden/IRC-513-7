@@ -11,7 +11,7 @@
 #define PACKET_SIZE 1024
 
 /*
-Because our chat system does not follow a send/response protocol 
+Because our chat system does not strictly follow a send/response protocol 
 We need to have a millisecond delay in order to avoid multiple messages from 
 being sent into a single buffer to the server.  
 */
@@ -151,6 +151,11 @@ void *read_chat(void *socket)
       }
       else
       {
+	if(strlen(chat_buffer) == 0)
+	{
+	  printf("The server is no longer available.  Closing client.\n");
+	  exit(0);
+	}
 	printf("%s: %s\n", friend_nick, chat_buffer);
       }
     }
