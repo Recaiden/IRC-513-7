@@ -233,6 +233,11 @@ int main(int argc, char *argv[]){
     // Check if file-transfer has started.
     if(strstr(buffer, "/FILE") == buffer)
     {
+      if(friend_fd == 0)
+      {
+	printf("Cannot send file while in queue.\n");
+	continue;
+      }
       buffer[strcspn(buffer, "\r\n")] = 0; // Trim newlines
       char filename [PACKET_SIZE-12];
       memcpy(filename, &buffer[6], PACKET_SIZE-12);
