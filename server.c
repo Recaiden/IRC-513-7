@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/utsname.h>
 
 #define PORT 6660
 
@@ -394,7 +395,7 @@ int beginServer(){
   
   //server_addr will contain address of server
   server_addr.sin_family = AF_INET; // Needs to be AF_NET
-  server_addr.sin_addr.s_addr = INADDR_ANY; // contains ip address of host 
+  server_addr.sin_addr.s_addr = htonl(INADDR_ANY); // contains ip address of host 
   server_addr.sin_port = htons(port_num); //htons converts to network byte order
   
   int yes = 1;
@@ -496,6 +497,16 @@ int initScreen(){
 int main (int argc, char *argv[] ){
   memset(data_use, 0, sizeof(data_use));
   printf("Welcome to the CS513 Chat Server.\n");
+  struct utsname unameData;
+  int i = uname(&unameData);
+  if(i != 0)
+    perror("Could not find the server's own hostname.");
+  else
+  {
+    printf("Machine Name: %s\n", unameData.sysname);
+    printf("Host Name: %s\n", unameData.nodename);
+
+  }
   initScreen();
   return 0;
 }
