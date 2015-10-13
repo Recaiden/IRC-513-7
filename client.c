@@ -294,7 +294,14 @@ int main(int argc, char *argv[]){
       //printf("File %s, Size is %d\n", filename, size);
       strcat(packaged, "/FILE/");
       strcat(packaged, filename);
-      
+
+        FILE *fp;
+        fp = fopen(filename, "rb"); 
+        if(fp == NULL)
+        { 
+          perror("Error opening file");
+        } else{
+
       //send message to server
       n = write(socket_fd, packaged, strlen(packaged));
       nanosleep(&ts, NULL);
@@ -302,6 +309,7 @@ int main(int argc, char *argv[]){
       { perror("Error writing to server"); exit(1); }
 
       transfer_file(socket_fd, filename);
+      }
     }
 
     // Majority case

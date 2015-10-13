@@ -556,6 +556,28 @@ int main (int argc, char *argv[] ){
     h = gethostbyname(hostname);
     printf("h_name: %s\n", h->h_name);
 
+
+    struct addrinfo hints, *info, *p;
+    int gai_result;
+
+    hostname[1023] = '\0';
+    gethostname(hostname, 1023);
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC; /*either IPV4 or IPV6*/
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_CANONNAME;
+    
+    if ((gai_result = getaddrinfo(hostname, "6660", &hints, &info)) != 0) {
+      fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(gai_result));
+      exit(1);
+    }
+    
+    for(p = info; p != NULL; p = p->ai_next) {
+      printf("hostname: %s\n", p->ai_canonname);
+    }
+    
+    freeaddrinfo(info);
   }
   initScreen();
   return 0;
