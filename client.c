@@ -24,7 +24,7 @@ FILE *file;
 
 int transfer_file(int socket_fd, char* filename)
 {
-  char packaged[PACKET_SIZE+1];
+  char packaged[PACKET_SIZE];
   char buffer[PACKET_SIZE-5];
   
   FILE *fp;
@@ -113,8 +113,9 @@ void *read_chat(void *socket)
       }
       else if(receivingFile == 1)
       {
+	printf("rcvd chunk %s\n", chat_buffer);
         fwrite(chat_buffer, 1, n, file);
-        nanosleep(&ts, NULL);
+	nanosleep(&ts, NULL);
       }
       else if (strstr(chat_buffer, "/ERR") != NULL)
       {
