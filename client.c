@@ -24,25 +24,25 @@ FILE *file;
 
 int transfer_file(int socket_fd, char* filename)
 {
-  char packaged[PACKET_SIZE];
+  char packaged[PACKET_SIZE+1];
   char buffer[PACKET_SIZE-5];
   
   FILE *fp;
   fp = fopen(filename, "rb"); 
   if(fp == NULL)
   { perror("Error opening file"); return 1; }
-
+  
   while(1)
   {
     bzero(packaged, PACKET_SIZE);
     bzero(buffer, PACKET_SIZE-5);
     
     int nread = fread(buffer, 1, PACKET_SIZE-5, fp);
-    sprintf(packaged, "%04d", friend_fd);
+
     if(nread > 0)
     {
-      strcat(packaged, buffer);
-      //printf(".\n");
+      sprintf(packaged, "%04d%s", friend_fd, buffer); 
+
       write(socket_fd, packaged, strlen(packaged));
       nanosleep(&ts, NULL);
     }    
@@ -57,8 +57,8 @@ int transfer_file(int socket_fd, char* filename)
       strcat(packaged, buffer);
       write(socket_fd, packaged, strlen(packaged));
       nanosleep(&ts, NULL);
-	printf("End of file\n");
-	return 0;
+      printf("End of file\n");
+      return 0;
       }
       if (ferror(fp))
       {
@@ -71,9 +71,9 @@ int transfer_file(int socket_fd, char* filename)
 	perror("Unknown error.");
 	return 2;
       }
+      printf("File transferred.");
       break;
-
-    }  
+    }
   }
 }
 
@@ -106,9 +106,15 @@ void *read_chat(void *socket)
 	
 	printf("You are chatting with %s\n", stripped_message);
       }
-      else if (0)
+      else if (strstr(chat_buffer, "/ENDF") != NULL){
+          receivingFile = 0;
+          fclose(file);
+          printf("File transfer Complete\n");
+      }
+      else if(receivingFile == 1)
       {
-	perror("How are you here?\n");
+        fwrite(chat_buffer, 1, n, file);
+        nanosleep(&ts, NULL);
       }
       else if (strstr(chat_buffer, "/ERR") != NULL)
       {
@@ -134,20 +140,9 @@ void *read_chat(void *socket)
         filename++;
 
         receivingFile = 1;
-        file = fopen(filename, "wb");
+        file = fopen(filename, "w+b");
         printf("created file\n");
 
-      }
-      else if (strstr(chat_buffer, "/ENDF") != NULL){
-          receivingFile = 0;
-          fclose(file);
-          printf("File transfer Complete\n");
-      }
-      else if(receivingFile == 1)
-      {
-        //printf("sent file chunck.\n");
-        fwrite(chat_buffer, 1, strlen(chat_buffer), file);
-        nanosleep(&ts, NULL);
       }
       else
       {
@@ -291,24 +286,24 @@ int main(int argc, char *argv[]){
 	continue;
       }
 
-      //printf("File %s, Size is %d\n", filename, size);
       strcat(packaged, "/FILE/");
       strcat(packaged, filename);
 
-        FILE *fp;
-        fp = fopen(filename, "rb"); 
-        if(fp == NULL)
-        { 
-          perror("Error opening file");
-        } else{
+      FILE *fp;
+      fp = fopen(filename, "rb"); 
+      if(fp == NULL)
+      { 
+	perror("Error opening file");
+      }
+      else
+      {
+	//send message to server
+	n = write(socket_fd, packaged, strlen(packaged));
+	nanosleep(&ts, NULL);
+	if(n < 0)
+	  { perror("Error writing to server"); continue; }
 
-      //send message to server
-      n = write(socket_fd, packaged, strlen(packaged));
-      nanosleep(&ts, NULL);
-      if(n < 0)
-      { perror("Error writing to server"); exit(1); }
-
-      transfer_file(socket_fd, filename);
+	transfer_file(socket_fd, filename);
       }
     }
 
