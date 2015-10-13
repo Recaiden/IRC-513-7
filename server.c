@@ -428,7 +428,8 @@ int beginServer(){
     printf("Server listening for sockets on port:%d\n", port_num);
     
     //listen for clients
-    listen(socket_fd, MAX_SOCKETS);
+    int n = listen(socket_fd, MAX_SOCKETS);
+    //printf("Listen result %d\n", n);
     client_len = sizeof(client_addr); // set client length
   }
   

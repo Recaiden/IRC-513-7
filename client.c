@@ -189,8 +189,38 @@ int main(int argc, char *argv[]){
     perror("Error opening socket");
     exit(1);
   }
+
+  struct addrinfo hints, *servinfo, *p;
+  int rv;
+
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_UNSPEC; // use AF_INET6 to force IPv6
+  hints.ai_socktype = SOCK_STREAM;
   
-  server = gethostbyname(argv[1]);
+  if ((rv = getaddrinfo(argv[1], argv[2], &hints, &servinfo)) != 0)
+  {
+    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+    exit(1);
+  }
+  // loop through all the results and connect to the first we can
+  for(p = servinfo; p != NULL; p = p->ai_next)
+  {
+    if ((socket_fd = socket(p->ai_family, p->ai_socktype,
+			 p->ai_protocol)) == -1) {
+      perror("socket");
+      continue;
+    }
+
+    if (connect(socket_fd, p->ai_addr, p->ai_addrlen) == -1) {
+      close(socket_fd);
+      perror("connect");
+      continue;
+    }
+    
+    break; // if we get here, we must have connected successfully
+  }
+  
+  /*server = gethostbyname(argv[1]);
   
   if(server == NULL){
     fprintf(stderr, "Error, no such host\n");
@@ -199,12 +229,14 @@ int main(int argc, char *argv[]){
   
   bzero((char *) &server_addr, sizeof(server_addr)); //zero out addr
   server_addr.sin_family = AF_INET;
-  bcopy((char *)server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length); //copy over s_addr
+  //bcopy((char *)server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length); //copy over s_addr
+  memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
   server_addr.sin_port = htons(port_num); //htons converts to network byte order
   
   //connect to server
   if(connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
   { perror("Error connecting to server"); exit(1); }
+  */
 
   // Identifying Connect command
   printf("Please enter your nickname: ");
