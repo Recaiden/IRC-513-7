@@ -58,20 +58,20 @@ int handle_disconnect(int i)
 	sendToClient uses the fd appended to the beginning of 
 	messages to find who the message should be sent to
 */
-int sendToClient(char *message)
+int sendToClient(char *message, int id)
 {
-  char fd_id [5];
+  /*  char fd_id [5];
   char stripped_message [PACKET_SIZE-5];
   memcpy(fd_id, &message[0], 4);
   memcpy(stripped_message, &message[4], PACKET_SIZE-5);
   fd_id[4] = '\0';
-  int id = strtoul(fd_id, NULL, 10);
+  int id = strtoul(fd_id, NULL, 10);*/
 
-  if(strchr(stripped_message, '/') != NULL)
+  if(strchr(message, '/') != NULL)
     return 0;
-  if(id > 1)
+  if(partners[id] > 1)
   {
-    int n = write(id, stripped_message, strlen(stripped_message));
+    int n = write(partners[id], message, strlen(message));
     if(n < 0)
     {
       perror("Error writing to client");
@@ -105,7 +105,7 @@ int processConnect(char *message, int fd)//, int* used_fds)
       char str2[PACKET_SIZE-5];
 
       // Write to partner who triggered connection
-      sprintf(str, "%d|%s", x, nicknames[x]);
+      sprintf(str, "%04d|%s", x, nicknames[x]);
       n = write(fd, str, strlen(str));
       if(n < 0)
       { perror("Error writing to client");  exit(1); }
@@ -113,7 +113,7 @@ int processConnect(char *message, int fd)//, int* used_fds)
       partners[fd] = x;
 
       // Write to waiting partner who was first to connect
-      sprintf(str2, "%d|%s", fd, nicknames[fd]);
+      sprintf(str2, "%04d|%s", fd, nicknames[fd]);
       n = write(x, str2, strlen(str2));
       if(n < 0)
       { perror("Error writing to client");  exit(1); }
@@ -141,12 +141,13 @@ int processCommand(char *message, int fd)//, int* used_fds)
   else if(strstr(message, "/FLAG") != NULL)
   {
     // Flag fd's partner
-    char fd_id [5];
+    /*char fd_id [5];
     char stripped_message [PACKET_SIZE-5];
     memcpy(fd_id, &message[0], 4);
     memcpy(stripped_message, &message[4], PACKET_SIZE-5);
     fd_id[4] = '\0';
-    int id = strtoul(fd_id, NULL, 10);
+    int id = strtoul(fd_id, NULL, 10);*/
+    int id = partners[fd];
 
     printf("User %d flagged by User %d\n", id, fd);
 
@@ -159,14 +160,14 @@ int processCommand(char *message, int fd)//, int* used_fds)
   }
   else if(strstr(message, "/CONN") != NULL)
   {
-    char stripped_message [PACKET_SIZE-10];
-    memcpy(stripped_message, &message[9], PACKET_SIZE-10);
+    //char stripped_message [PACKET_SIZE-10];
+    //memcpy(stripped_message, &message[5], PACKET_SIZE-10);
     //char fd_id [5];
     //memcpy(fd_id, &message[0], 4);
     //fd_id[4] = '\0';
     //int id = strtoul(fd_id, NULL, 10);
 
-    memcpy(nicknames[fd], stripped_message, PACKET_SIZE-10);
+    memcpy(nicknames[fd], &message[5], strlen(message)-4);
     
     char response[PACKET_SIZE];
     bzero(response, PACKET_SIZE);
@@ -187,10 +188,11 @@ int processCommand(char *message, int fd)//, int* used_fds)
   else if(strstr(message, "/QUIT") != NULL)
   {
     int n;
-    char fd_id [5];
+    /*char fd_id [5];
     memcpy(fd_id, &message[0], 4);
     fd_id[4] = '\0';
-    int id = strtoul(fd_id, NULL, 10);
+    int id = strtoul(fd_id, NULL, 10);*/
+    int id = partners[fd];
 
     char str[PACKET_SIZE];
     char str2[PACKET_SIZE];
@@ -213,27 +215,29 @@ int processCommand(char *message, int fd)//, int* used_fds)
   }
   else if(strstr(message, "/FILE") != NULL)
   {
-      char fd_id [5];
+    /*char fd_id [5];
       char stripped_message [PACKET_SIZE-5];
       bzero(stripped_message, PACKET_SIZE-5);
       memcpy(fd_id, &message[0], 4);
       memcpy(stripped_message, &message[4], PACKET_SIZE-5);
       fd_id[4] = '\0';
-      int id = strtoul(fd_id, NULL, 10);
-    int n = write(id, stripped_message, strlen(stripped_message));
+      int id = strtoul(fd_id, NULL, 10);*/
+    int id = partners[fd];
+    int n = write(id,message, strlen(message));
     if(n < 0)
     { perror("Error writing to client");  exit(1); }
 
   }
   else if(strstr(message, "/ENDF") != NULL){
-      char fd_id [5];
+    /*char fd_id [5];
       char stripped_message [PACKET_SIZE-5];
       bzero(stripped_message, PACKET_SIZE-5);
       memcpy(fd_id, &message[0], 4);
       memcpy(stripped_message, &message[4], PACKET_SIZE-5);
       fd_id[4] = '\0';
-      int id = strtoul(fd_id, NULL, 10);
-    int n = write(id, stripped_message, strlen(stripped_message));
+      int id = strtoul(fd_id, NULL, 10);*/
+    int id = partners[fd];
+    int n = write(id, message, strlen(message));
     if(n < 0)
     { perror("Error writing to client");  exit(1); }
   }
@@ -523,7 +527,7 @@ int beginServer(){
     //printf("prebuffed: %s END\n", buffer);
     data_use[i] += strlen(buffer);
     //handles all messages
-    if(sendToClient(buffer) == 0)
+    if(sendToClient(buffer, i) == 0)
     {
       processCommand(buffer, i);//, used_fds);
     }

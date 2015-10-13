@@ -41,9 +41,11 @@ int transfer_file(int socket_fd, char* filename)
 
     if(nread > 0)
     {
-      sprintf(packaged, "%04d%s", friend_fd, buffer); 
+      //printf("BUFFERING:%s\n", buffer);
+      //sprintf(packaged, "%04d%s", friend_fd, buffer);
 
-      write(socket_fd, packaged, strlen(packaged));
+      //printf("SENDING: %s\n", buffer);
+      write(socket_fd, buffer, strlen(buffer));
       nanosleep(&ts, NULL);
     }    
     if (nread < PACKET_SIZE-5)
@@ -52,7 +54,7 @@ int transfer_file(int socket_fd, char* filename)
       {
       bzero(packaged, PACKET_SIZE);
       bzero(buffer, PACKET_SIZE-5);
-      sprintf(packaged, "%04d", friend_fd);
+      //sprintf(packaged, "%04d", friend_fd);
       sprintf(buffer, "/ENDF");
       strcat(packaged, buffer);
       write(socket_fd, packaged, strlen(packaged));
@@ -86,6 +88,7 @@ void *read_chat(void *socket)
     //read server response
     bzero(chat_buffer, PACKET_SIZE);
     n = read((* socket_fd), chat_buffer, PACKET_SIZE-1);
+    //printf("RECEIVED: %s\n", chat_buffer);
     if(n < 0){
       sleep(1); //sleep some time while waiting for a message
     } else {
@@ -97,7 +100,7 @@ void *read_chat(void *socket)
 	char fd_id [5];
 	char stripped_message [PACKET_SIZE-5];
 	memcpy(fd_id, &chat_buffer[0], n);
-	memcpy(stripped_message, &chat_buffer[index], n - index -1);
+	memcpy(stripped_message, &chat_buffer[index], n - index);
 	fd_id[index] = '\0';
 
 	friend_fd = atoi(fd_id);
@@ -113,7 +116,7 @@ void *read_chat(void *socket)
       }
       else if(receivingFile == 1)
       {
-	//printf("rcvd chunk %s\n", chat_buffer);
+	printf("rcvd chunk %s\n", chat_buffer);
         fwrite(chat_buffer, 1, n, file);
 	nanosleep(&ts, NULL);
       }
@@ -161,12 +164,10 @@ void *read_chat(void *socket)
 }
 
 int main(int argc, char *argv[]){
-  ts.tv_sec = 1 / 1000;
+  ts.tv_sec = 1000 / 1000;
   ts.tv_nsec = (1 % 1000) * 1000000;
   
-  int socket_fd, port_num, n;
-  struct sockaddr_in server_addr;
-  struct hostent * server;
+  int socket_fd, n;
   char packaged[PACKET_SIZE];
   char buffer[PACKET_SIZE-5];
   
@@ -175,8 +176,6 @@ int main(int argc, char *argv[]){
     fprintf(stderr, "usage %s hostname port\n", argv[0]);
     exit(0);
   }
-  
-  port_num = atoi(argv[2]); //convert arg to int
   
   //init socket
   socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -202,45 +201,31 @@ int main(int argc, char *argv[]){
   for(p = servinfo; p != NULL; p = p->ai_next)
   {
     if ((socket_fd = socket(p->ai_family, p->ai_socktype,
-			 p->ai_protocol)) == -1) {
+			 p->ai_protocol)) == -1)
+    {
       perror("socket");
       continue;
     }
 
-    if (connect(socket_fd, p->ai_addr, p->ai_addrlen) == -1) {
+    if (connect(socket_fd, p->ai_addr, p->ai_addrlen) == -1)
+    {
       close(socket_fd);
-      perror("connect");
+      //perror("connect");
       continue;
     }
     
     break; // if we get here, we must have connected successfully
   }
   
-  /*server = gethostbyname(argv[1]);
-  
-  if(server == NULL){
-    fprintf(stderr, "Error, no such host\n");
-    exit(0);
-  }
-  
-  bzero((char *) &server_addr, sizeof(server_addr)); //zero out addr
-  server_addr.sin_family = AF_INET;
-  //bcopy((char *)server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length); //copy over s_addr
-  memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
-  server_addr.sin_port = htons(port_num); //htons converts to network byte order
-  
-  //connect to server
-  if(connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
-  { perror("Error connecting to server"); exit(1); }
-  */
 
   // Identifying Connect command
   printf("Please enter your nickname: ");
   //create message for server
   bzero(packaged, PACKET_SIZE-1);
   bzero(buffer, PACKET_SIZE-5);
-  fgets(buffer, PACKET_SIZE-6, stdin);
-  sprintf(packaged, "%04d/CONN", friend_fd);
+  fgets(buffer, PACKET_SIZE-5, stdin);
+  buffer[strcspn(buffer, "\r\n")] = 0; // Trim newlines
+  sprintf(packaged, "/CONN");
   strcat(packaged, buffer);
   
   //send message to server
@@ -262,8 +247,9 @@ int main(int argc, char *argv[]){
     bzero(packaged, PACKET_SIZE-1);
     bzero(buffer, PACKET_SIZE-5);
     fgets(buffer, PACKET_SIZE-6, stdin);
+    buffer[strcspn(buffer, "\r\n")] = 0; // Trim newlines
 
-    sprintf(packaged, "%04d", friend_fd);  
+    //sprintf(packaged, "%04d", friend_fd);  
 
     // Check if file-transfer has started.
     if(strstr(buffer, "/FILE") == buffer)
@@ -311,9 +297,9 @@ int main(int argc, char *argv[]){
     // Majority case
     else
     {
-      strcat(packaged, buffer);
+      //strcat(packaged, buffer);
       //send message to server
-      n = write(socket_fd, packaged, strlen(packaged));
+      n = write(socket_fd, buffer, strlen(buffer));
       nanosleep(&ts, NULL);
       if(n < 0)
       { perror("Error writing to server"); exit(1); }
