@@ -67,8 +67,14 @@ int sendToClient(char *message, int id)
   fd_id[4] = '\0';
   int id = strtoul(fd_id, NULL, 10);*/
 
-  if(strchr(message, '/') != NULL)
-    return 0;
+  if(strstr(message, "/CONN") != NULL ||
+     strstr(message, "/HELP") != NULL ||
+     strstr(message, "/QUIT") != NULL ||
+     strstr(message, "/CHAT") != NULL ||
+     strstr(message, "/FLAG") != NULL)
+    {
+	return 0;
+    }
   if(partners[id] > 1)
   {
     int n = write(partners[id], message, strlen(message));

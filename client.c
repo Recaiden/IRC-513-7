@@ -116,7 +116,7 @@ void *read_chat(void *socket)
       }
       else if(receivingFile == 1)
       {
-	printf("rcvd chunk %s\n", chat_buffer);
+	//printf("rcvd chunk %s\n", chat_buffer);
         fwrite(chat_buffer, 1, n, file);
 	nanosleep(&ts, NULL);
       }
@@ -164,7 +164,7 @@ void *read_chat(void *socket)
 }
 
 int main(int argc, char *argv[]){
-  ts.tv_sec = 1000 / 1000;
+  ts.tv_sec = 100 / 1000;
   ts.tv_nsec = (1 % 1000) * 1000000;
   
   int socket_fd, n;
