@@ -168,8 +168,8 @@ int processCommand(char *message, int fd)//, int* used_fds)
 
     memcpy(nicknames[fd], stripped_message, PACKET_SIZE-10);
     
-    char response[356];
-    bzero(response, 356);
+    char response[PACKET_SIZE];
+    bzero(response, PACKET_SIZE);
     sprintf(response, "You are now connected as %s", nicknames[fd]);
     int n = write(fd, response, strlen(response));
     if(n < 0)
@@ -262,6 +262,8 @@ int admin_commands(void *socket)
 
     if(strstr(buffer, "/STATS") != NULL)
     {
+      FILE *fp;
+      fp = fopen("stats.txt", "w+b");
       int x;
       int sQueue = 0, sChat =0;
       for(x = 0; x < MAX_SOCKETS; x++)
@@ -271,14 +273,24 @@ int admin_commands(void *socket)
 	else if(used_fds[x] == 3)
 	  sChat += 1;
 	if(flags[x] != 0)
+	{
 	  printf("User %d - %s has been flagged %d times.\n", x, nicknames[x], flags[x]);
+	  fprintf(fp, "User %d - %s has been flagged %d times.\n", x, nicknames[x], flags[x]);
+	}
 	if(blocks[x] != 0)
+	{
 	  printf("User %d - %s has been BLOCKED from entering chat.\n", x, nicknames[x]);
-  if(partners[x]>0 && partners[x] > partners[partners[x]]){
+	  fprintf(fp, "User %d - %s has been BLOCKED from entering chat.\n", x, nicknames[x]);
+	}
+  if(partners[x]>0 && partners[x] > partners[partners[x]])
+  {
     printf("ChatRoom with %s and %s data usage: %dbytes\n",nicknames[x], nicknames[partners[x]], (data_use[x]+data_use[partners[x]]) );
+    fprintf(fp, "ChatRoom with %s and %s data usage: %dbytes\n",nicknames[x], nicknames[partners[x]], (data_use[x]+data_use[partners[x]]) );
   }
       }
       printf("%d users are in chat, and %d users are waiting in queue.\n", sChat, sQueue);
+      fprintf(fp, "%d users are in chat, and %d users are waiting in queue.\n", sChat, sQueue);
+      fclose(fp);
     }
     // takes a user's numerical ID
     else if(strstr(buffer, "/BLOCK") != NULL)

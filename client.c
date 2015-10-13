@@ -113,7 +113,7 @@ void *read_chat(void *socket)
       }
       else if(receivingFile == 1)
       {
-	printf("rcvd chunk %s\n", chat_buffer);
+	//printf("rcvd chunk %s\n", chat_buffer);
         fwrite(chat_buffer, 1, n, file);
 	nanosleep(&ts, NULL);
       }
